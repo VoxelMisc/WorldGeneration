@@ -9,8 +9,10 @@
 		"@thi.ng/poisson": "^2.1.7",
 		"@thi.ng/vectors": "^7.4.3",
 		"libnoise-ts": "^0.1.1",
+		"rand-seed": "^1.0.1",
 		"random-seed": "^0.3.0",
-		"simplex-noise": "^3.0.1"
+		"simplex-noise": "^3.0.1",
+		"static-kdtree": "^1.0.2"
 	},
 	"main": "dist/bundle.js",
 	"scripts": {
@@ -29,7 +31,7 @@
 		"webpack-cli": "^4.9.2"
 	},
 	"exports": {
-		".": "./src/index.js"
+		".": "./src/index.ts"
 	},
 	"browserslist": {
 		"production": [

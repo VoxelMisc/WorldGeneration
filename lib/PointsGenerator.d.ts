@@ -5,9 +5,17 @@ export declare class PointsGenerator {
     pointsPerCell: number;
     _currCells: any[];
     _tempCellCoord: number[];
-    constructor(minDistanceBetweenPoints: number);
+    useIsPoint: boolean;
+    useKthClosestPoint: boolean;
+    seed: string;
+    constructor(minDistanceBetweenPoints: number, useIsPoint: boolean, useKthClosestPoint: boolean, seed: string);
     isPoint(x: any, z: any): boolean;
+    getKClosestPoints(x: any, z: any): number[][];
+    _get2ClosestPtsForAlrdyGeneratedCell(cell: any, x: any, z: any): number[][];
     getCellCoordFromGlobalCoord(x: any, z: any): number[];
-    getCellPoints(cellX: any, cellZ: any): any;
-    generateRandomPointsForCell(cellX: any, cellZ: any): import("@thi.ng/vectors").Vec[];
+    getCell(cellX: any, cellZ: any): any;
+    generateRandomPointsForCell(cellX: any, cellZ: any): {
+        pointsSet: any;
+        points: import("@thi.ng/vectors").Vec[];
+    };
 }
