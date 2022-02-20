@@ -4,7 +4,11 @@ export declare function xzIdArr(arr: any): string;
 export declare type TxzId = string;
 export declare function xzDist(x: any, z: any): number;
 export declare function xzDistNoArr(pt1: any, x: any, z: any): number;
-export declare class SimplexOctaveHelper {
+export declare function sortDistFromPointAscendingFunction(sourcePoint: any, point1: any, point2: any): number;
+export interface NoiseHelper {
+    getOctaves(x: number, z: number): number;
+}
+export declare class SimplexOctaveHelper implements NoiseHelper {
     amplitude: any;
     frequency: any;
     numOctaves: any;
@@ -22,9 +26,8 @@ export declare class SimplexOctaveHelper {
     });
     getOctaves(x: any, z: any): number;
 }
-export declare class SimplexCustomOctaveHelper {
+export declare class SimplexCustomOctaveHelper implements NoiseHelper {
     customOctaves: any;
-    frequencyMultiplier: number;
     _simplexes: SimplexNoise[];
     constructor(customOctaves: {
         amplitude: number;

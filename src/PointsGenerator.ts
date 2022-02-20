@@ -1,21 +1,21 @@
 import { KdTreeSet } from "@thi.ng/geom-accel";
-import { fit01 } from "@thi.ng/math";
 import { samplePoisson } from "@thi.ng/poisson";
-import { dist, randMinMax2 } from "@thi.ng/vectors";
 import { makeProfileHook } from './profileHook'
 import {xzDist, xzDistNoArr} from './util'
+import {ArrayLikeIterable, Fn} from '@thi.ng/api'
 const gen = require('random-seed')
-const createKDTree = require("static-kdtree")
 
 const profilePoints = false
 const profiler = profilePoints ? makeProfileHook(110000, 'isPoint') : () => {}
 
 export class PointsGenerator {
 	minDist: number
+	densityFunc: Fn<ArrayLikeIterable<number>, number>
+
 	gridSize: number
 
 	maxStoredCells = 30
-	pointsPerCell = 20
+	pointsPerCell: number
 
 	_currCells = []
 	_tempCellCoord = [0, 0]
@@ -25,11 +25,14 @@ export class PointsGenerator {
 
 	seed: string
 
-	constructor(minDistanceBetweenPoints: number, useIsPoint: boolean, useKthClosestPoint: boolean, seed: string) {
+	constructor(minDistanceBetweenPoints: number, useIsPoint: boolean, useKthClosestPoint: boolean, seed: string, pointsPerCell: number, densityFunc=null) {
 		console.assert(Number.isInteger(minDistanceBetweenPoints))
 
 		this.minDist = minDistanceBetweenPoints
+		this.densityFunc = densityFunc
 		// this.gridSize = minDistanceBetweenPoints * 10
+
+		this.pointsPerCell = pointsPerCell
 
 		this.gridSize = Math.floor(Math.sqrt(this.pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
 		// const circleRadius = minDistanceBetweenPoints/2
@@ -40,6 +43,8 @@ export class PointsGenerator {
 		this.useKthClosestPoint = useKthClosestPoint
 
 		this.seed = seed
+
+		console.log(this.minDist, this.gridSize)
 	}
 
 	isPoint(x, z) {
@@ -71,56 +76,116 @@ export class PointsGenerator {
 	// 	return kClosest[kClosest.length-1]
 	// }
 
-	getKClosestPoints(x, z) {
+	getClosestPoint(x, z) {
 		const cellCoord = this.getCellCoordFromGlobalCoord(x, z)
 		const cell = this.getCell(cellCoord[0], cellCoord[1])
-		if (!cell.pointsInKdTree) {
-			const pointsForKdTree = [...cell.points]
+
+		const surroundingPoints = this._getPointsSurroundingCell(cellCoord, cell)
+
+		let closestPt = [0, 0]
+		let closestDist = 10000
+		for (let tryPt of surroundingPoints) {
+			const dist = xzDistNoArr(tryPt, x, z)
+			if (dist < closestDist) {
+				closestPt = tryPt
+				closestDist = dist
+			}
+		}
+
+		return closestPt
+	}
+
+	getKClosestPointsWithWeights(x, z, distanceToSmoothAt: number) {
+		const cellCoord = this.getCellCoordFromGlobalCoord(x, z)
+		const cell = this.getCell(cellCoord[0], cellCoord[1])
+
+		this._getPointsSurroundingCell(cellCoord, cell)
+
+		return this._getClosestPointsForGeneratedCell(cell, x, z, distanceToSmoothAt)
+	}
+
+	_getPointsSurroundingCell(cellCoord, cell) {
+		if (!cell.surroundingPoints) {
+			const surroundingPoints = [...cell.points]
 			for (let i = cellCoord[0]-1; i <= cellCoord[0]+1; i++) {
 				for (let k = cellCoord[1]-1; k <= cellCoord[1]+1; k++) {
 					if (ptEqual(cellCoord, i, k)) {
 						continue
 					}
 
-					pointsForKdTree.push(...this.getCell(i, k).points)
+					surroundingPoints.push(...this.getCell(i, k).points)
 				}
 			}
 
-			cell.pointsInKdTree = pointsForKdTree
-			// cell.kdTree = createKDTree(pointsForKdTree)
+			cell.surroundingPoints = surroundingPoints
 		}
 
-		// const idxsOfClosest = cell.kdTree.knn([x, z], k)
-		// const closestPts = []
-		// for (let i of idxsOfClosest) {
-		// 	closestPts.push(cell.pointsInKdTree[i])
-		// }
-
-		return this._get2ClosestPtsForAlrdyGeneratedCell(cell, x, z)
+		return cell.surroundingPoints
 	}
 
-	_get2ClosestPtsForAlrdyGeneratedCell(cell, x, z) {
-		let closestPt = [0, 0]
-		let secondClosestPt = [0, 0]
-		let closest = 10000
-		let secondClosest = 10000
-		for (let tryPt of cell.pointsInKdTree) {
-			const dist = xzDistNoArr(tryPt, x, z)
-			if (dist < closest) {
-				secondClosestPt = closestPt
-				closestPt = tryPt
+	_getClosestPointsForGeneratedCell(cell, x, z, smoothDist) {
+		cell.surroundingPoints.sort((a, b) => {
+			const distA = xzDistNoArr(a, x, z)
+			const distB = xzDistNoArr(b, x, z)
+			return distA-distB
+		})
 
-				secondClosest = closest
-				closest = dist
+		const firstPtDist = xzDistNoArr(cell.surroundingPoints[0], x, z)
+		const returnResult = [{pt: cell.surroundingPoints[0], distDiffFromFirstPt: 0, weight: null,}]
+
+		// Initialise to smoothDist as we already have weight from first point
+		let weightTotal = smoothDist
+
+		for (let i = 1; i < cell.surroundingPoints.length; i++) {
+			const dist = xzDistNoArr(cell.surroundingPoints[i], x, z)
+			const distDiff = dist-firstPtDist
+			if (distDiff < smoothDist) {
+				returnResult.push({
+					pt: cell.surroundingPoints[i],
+					distDiffFromFirstPt: distDiff,
+					weight: null,
+				})
+
+				weightTotal += smoothDist-distDiff
 			}
-			else if (dist < secondClosest) {
-				secondClosestPt = tryPt
-				secondClosest = dist
+			else {
+				break
 			}
 		}
 
-		return [closestPt, secondClosestPt]
+		// let totalWeights = 0
+		for (const res of returnResult) {
+			res.weight = (smoothDist-res.distDiffFromFirstPt)/weightTotal
+			// totalWeights += res.weight
+		}
+		// Ensure total sum of weights is exactly 1 - actually mby not needed
+		// returnResult[0].weight += (1-totalWeights)
+
+		return returnResult
 	}
+
+	// _get2ClosestPtsForAlrdyGeneratedCell(cell, x, z) {
+	// 	let closestPt = [0, 0]
+	// 	let secondClosestPt = [0, 0]
+	// 	let closest = 10000
+	// 	let secondClosest = 10000
+	// 	for (let tryPt of cell.surroundingPoints) {
+	// 		const dist = xzDistNoArr(tryPt, x, z)
+	// 		if (dist < closest) {
+	// 			secondClosestPt = closestPt
+	// 			closestPt = tryPt
+	//
+	// 			secondClosest = closest
+	// 			closest = dist
+	// 		}
+	// 		else if (dist < secondClosest) {
+	// 			secondClosestPt = tryPt
+	// 			secondClosest = dist
+	// 		}
+	// 	}
+	//
+	// 	return [closestPt, secondClosestPt]
+	// }
 
 	getCellCoordFromGlobalCoord(x, z) {
 		this._tempCellCoord[0] = Math.floor(x/this.gridSize)
@@ -146,8 +211,7 @@ export class PointsGenerator {
 			coord: [cellX, cellZ],
 			points,
 			pointsSet,
-			kdTree: null,
-			pointsInKdTree: null,
+			surroundingPoints: null,
 		}
 		this._currCells.unshift(cell)
 		if (this.minDist === 50) {
@@ -168,18 +232,16 @@ export class PointsGenerator {
 		const startX = cellX*this.gridSize
 		const startZ = cellZ*this.gridSize
 
+		// let times = 0
 		const index = new KdTreeSet(2);
 		const pts = samplePoisson({
 			index,
 			points: () => {
 				return [startX+cellRand(Math.floor(this.gridSize-this.minDist)-1), startZ+cellRand(Math.floor(this.gridSize-this.minDist)-1)]
 			},
-			density: this.minDist,
+			density: this.densityFunc ? this.densityFunc : this.minDist,
 			max: 10000,
-			quality: 300,
-			// points: () => {
-			// 	return randMinMax2(null, [0, 0], [20, 20])
-			// },
+			quality: 80,
 			// density: (p) => fit01(Math.pow(dist(p, [250, 250]) / 250, 2), 2, 10),
 		});
 
@@ -190,6 +252,8 @@ export class PointsGenerator {
 				pointsSet.add(`${pt[0]}|${pt[1]}`)
 			}
 		}
+
+		// console.log("Times", times)
 
 		return {
 			pointsSet,

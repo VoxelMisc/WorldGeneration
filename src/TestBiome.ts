@@ -1,6 +1,6 @@
 import SimplexNoise from 'simplex-noise'
 import {PointsGenerator} from './PointsGenerator'
-import {SimplexOctaveHelper} from './util'
+import {NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper} from './util'
 const gen = require('random-seed')
 
 
@@ -21,7 +21,9 @@ export class TestBiome {
     blockMetadata
     chunkSize
 
-    _heightmapSimplex: SimplexOctaveHelper
+    treeMinDist: number = 5
+
+    _heightmapSimplex: NoiseHelper
 
     constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
         this.chunkSize = chunkSize
@@ -83,40 +85,64 @@ export class TestBiome {
         return 0
     }
 
-
-    // getHeightmapVal(x, z) {
-    //     let amplitude = this.initialAmplitude
-    //     let frequency = this.initialFrequency
-    //     let result = 0
-    //     for (let i = 0; i < this.numOctaves; i++) {
-    //         result += this.simplex.noise2D(x*frequency, z*frequency)*amplitude
-    //
-    //         amplitude *= 0.5
-    //         frequency *= 2
-    //     }
-    //
-    //     return this.offsettedHeight+Math.floor(result)
-    // }
-
     getHeightmapVal(x, z) {
-        return this.offsettedHeight+Math.floor(this._heightmapSimplex.getOctaves(x, z))
+        return this.offsettedHeight+this._heightmapSimplex.getOctaves(x, z)
     }
 }
+
+
 
 export class DesertBiome extends TestBiome {
     constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
         super(chunkSize, blockMetadata, `${seed}Desert`, {treeHeight, treeRadius})
 
+        this.treeMinDist = null
+
         this.groundBlockType = blockMetadata["Sand"].id
-
-        this._heightmapSimplex = new SimplexOctaveHelper({
-            amplitude: this.initialAmplitude,
-            frequency: this.initialFrequency,
-            numOctaves: this.numOctaves,
-            amplitudeMultiplier: 0.5,
-            seed: `${seed}DesertBiomeHeightmap`
-        })
-
-        console.log("FINAL!!")
     }
 }
+
+
+export class PlainsBiome extends TestBiome {
+    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
+        super(chunkSize, blockMetadata, `${seed}Plains`, {treeHeight, treeRadius})
+
+        this.groundBlockType = blockMetadata["Grass Block"].id
+
+        this.treeMinDist = 25
+
+        this._heightmapSimplex = new SimplexCustomOctaveHelper([
+            {
+                amplitude: 4,
+                frequency: 1/70,
+            },
+            {
+                amplitude: 2,
+                frequency: 1/30,
+            },
+        ], `${seed}PlainsBiomeHeightMap`)
+    }
+}
+
+export class ForestBiome extends TestBiome {
+    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
+        super(chunkSize, blockMetadata, `${seed}Forest`, {treeHeight, treeRadius})
+
+        this.groundBlockType = blockMetadata["Grass Block"].id
+
+        this.treeMinDist = 6
+
+        this._heightmapSimplex = new SimplexCustomOctaveHelper([
+            {
+                amplitude: 4,
+                frequency: 1/70,
+            },
+            {
+                amplitude: 2,
+                frequency: 1/30,
+            },
+        ], `${seed}ForestBiomeHeightMap`)
+    }
+}
+
+// TODO Ocean biome

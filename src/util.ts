@@ -22,7 +22,17 @@ export function xzDistNoArr(pt1, x, z) {
 	return Math.sqrt(a*a + b*b)
 }
 
-export class SimplexOctaveHelper {
+export function sortDistFromPointAscendingFunction(sourcePoint, point1, point2) {
+	const distA = xzDist(sourcePoint, point1)
+	const distB = xzDist(sourcePoint, point2)
+	return distA-distB
+}
+
+export interface NoiseHelper {
+	getOctaves(x: number, z: number): number
+}
+
+export class SimplexOctaveHelper implements NoiseHelper {
 	amplitude
 	frequency
 	numOctaves
@@ -73,10 +83,8 @@ export class SimplexOctaveHelper {
 	}
 }
 
-export class SimplexCustomOctaveHelper {
+export class SimplexCustomOctaveHelper implements NoiseHelper {
 	customOctaves
-
-	frequencyMultiplier=2
 
 	_simplexes: SimplexNoise[] = []
 

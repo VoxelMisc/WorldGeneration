@@ -1,4 +1,4 @@
-import { SimplexOctaveHelper } from './util';
+import { NoiseHelper } from './util';
 export declare class TestBiome {
     initialAmplitude: number;
     offsettedHeight: number;
@@ -9,7 +9,8 @@ export declare class TestBiome {
     groundBlockType: number;
     blockMetadata: any;
     chunkSize: any;
-    _heightmapSimplex: SimplexOctaveHelper;
+    treeMinDist: number;
+    _heightmapSimplex: NoiseHelper;
     constructor(chunkSize: any, blockMetadata: any, seed: any, { treeHeight, treeRadius }: {
         treeHeight: any;
         treeRadius: any;
@@ -30,6 +31,18 @@ export declare class TestBiome {
     getHeightmapVal(x: any, z: any): number;
 }
 export declare class DesertBiome extends TestBiome {
+    constructor(chunkSize: any, blockMetadata: any, seed: any, { treeHeight, treeRadius }: {
+        treeHeight: any;
+        treeRadius: any;
+    });
+}
+export declare class PlainsBiome extends TestBiome {
+    constructor(chunkSize: any, blockMetadata: any, seed: any, { treeHeight, treeRadius }: {
+        treeHeight: any;
+        treeRadius: any;
+    });
+}
+export declare class ForestBiome extends TestBiome {
     constructor(chunkSize: any, blockMetadata: any, seed: any, { treeHeight, treeRadius }: {
         treeHeight: any;
         treeRadius: any;

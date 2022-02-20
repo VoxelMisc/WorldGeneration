@@ -21,7 +21,7 @@ function test(minDist, cellX, cellZ) {
 
 function testNearestNeighbours() {
     const pointsGenerator = new PointsGenerator(3, false, true)
-    const kClosestResult = pointsGenerator.getKClosestPoints(-500, 1500, 5).map(pt => `${pt[0]}|${pt[1]}`)
+    const kClosestResult = pointsGenerator.getKClosestPointsWithWeights(-500, 1500, 5).map(pt => `${pt[0]}|${pt[1]}`)
     // console.log("kClosest", kClosestResult)
 
     console.assert(kClosestResult.length === 5, "there are 5 kClosest")
