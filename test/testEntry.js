@@ -4,21 +4,21 @@ const { WorldGenerator } = require('../dist/bundle').default
 
 const worldGenerator = new WorldGenerator(32, blockMetadata, "test")
 
-const desert = [-12, 32]
-
-const xOffset = worldGenerator.biomeOffsetSimplex.getOctaves(desert[0], 0)
-const zOffset = worldGenerator.biomeOffsetSimplex.getOctaves(0, desert[1])
-
-// const zOffsets = this._getBiomeZOffsets(z)
-// const zOffset = zOffsets[k+this.neededOutsideChunkHeightRadius]
-
-console.log("offsets", xOffset, zOffset)
-console.log("Point queried", desert[0]+xOffset, desert[1]+zOffset)
-
-const closestTwoPts = worldGenerator.biomePointGen.getKClosestPoints(desert[0]+xOffset, desert[1]+zOffset)
-const desertbiome = worldGenerator._getBiomeForBiomePoint(closestTwoPts[0][0], closestTwoPts[0][1])
-
-console.log(closestTwoPts, desertbiome.constructor.name === "TestBiome")
+// const desert = [-12, 32]
+//
+// const xOffset = worldGenerator.biomeOffsetSimplex.getOctaves(desert[0], 0)
+// const zOffset = worldGenerator.biomeOffsetSimplex.getOctaves(0, desert[1])
+//
+// // const zOffsets = this._getBiomeZOffsets(z)
+// // const zOffset = zOffsets[k+this.neededOutsideChunkHeightRadius]
+//
+// console.log("offsets", xOffset, zOffset)
+// console.log("Point queried", desert[0]+xOffset, desert[1]+zOffset)
+//
+// const closestTwoPts = worldGenerator.biomePointGen.getKClosestPoints(desert[0]+xOffset, desert[1]+zOffset)
+// const desertbiome = worldGenerator._getBiomeForBiomePoint(closestTwoPts[0][0], closestTwoPts[0][1])
+//
+// console.log(closestTwoPts, desertbiome.constructor.name === "TestBiome")
 
 
 
