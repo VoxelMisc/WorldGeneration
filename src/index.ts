@@ -29,8 +29,10 @@ class WorldGenerator {
 
 	cavesGenerator: CavesGenerator
 
+	baseBiome: TestBiome
+
 	constructor(chunkSize, blockMetadata, seed) {
-		const testBiome = new TestBiome(
+		this.baseBiome = new TestBiome(
 			chunkSize,
 			blockMetadata,
 			seed,
@@ -116,7 +118,7 @@ class WorldGenerator {
 			},
 		], `${seed}BiomeOffsetSimplex`)
 
-		this.cavesGenerator = new CavesGenerator(seed, chunkSize)
+		this.cavesGenerator = new CavesGenerator(seed, chunkSize, this.neededOutsideChunkHeightRadius)
 	}
 
 	// x, y, z are the co-ordinates of the bottom left block in the chunk
@@ -134,9 +136,9 @@ class WorldGenerator {
 		let allClosestBiomePoints
 		allClosestBiomePoints = this._getClosest2BiomePoints(x, z)
 		const heightMapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
-		const treeTrunks = this._getTreeTrunksNearChunk(x, z, allClosestBiomePoints)
 
 		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z)
+		const treeTrunks = this._getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
 
 		for (let i = 0; i < this.chunkSize; ++i) {
 			for (let k = 0; k < this.chunkSize; ++k) {
@@ -185,7 +187,6 @@ class WorldGenerator {
 
 	// x and z should be the center of the biome, as provided by biomePointGenerator closestPoint
 	_getBiomeForBiomePoint(biomePt): TestBiome {
-		// const rand = gen(`${biomeX}|${biomeZ}|${this.seed}`)
 		const rand = new Rand(`${biomePt[0]}|${biomePt[1]}|${this.seed}`, PRNG.mulberry32);
 		const biomeInt = Math.floor((rand.next()-0.00001)*this.biomesTotalFrequency)
 		let freqSeenSoFar = 0
@@ -263,16 +264,23 @@ class WorldGenerator {
 
 
 	// x and z are coords of bottom left block in chunk
-	_getTreeTrunksNearChunk(x, z, allClosestBiomePoints) {
+	_getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos) {
 		const trees = new Set()
 		for (let i = x-this.treeRadius; i < x+this.chunkSize+this.treeRadius; i++) {
 			for (let k = z-this.treeRadius; k < z+this.chunkSize+this.treeRadius; k++) {
-				const closestBiomePts = allClosestBiomePoints[xzId(i, k)]
+				const xzID = xzId(i, k)
+				const closestBiomePts = allClosestBiomePoints[xzID]
 				const biome = this._getBiomeForBiomePoint(closestBiomePts[0].pt)
 				if (biome.treeMinDist !== null) {
 					const isTreeTrunk = this.treeGen.isPoint(i, k)
 					if (isTreeTrunk) {
-						trees.add(xzId(i, k))
+						// Check not on top of cave
+						const heightmapVal = heightMapVals[xzID]
+						// const caveInfo = caveInfos[xzID]
+						// console.log(i, k, caveInfo)
+						if (!this.baseBiome._isCave(i, heightmapVal, k, caveInfos)) {
+							trees.add(xzID)
+						}
 					}
 				}
 			}

@@ -2,9 +2,23 @@ import SimplexNoise from 'simplex-noise';
 export declare function xzId(x: any, z: any): string;
 export declare function xzIdArr(arr: any): string;
 export declare type TxzId = string;
+export declare function xzDistSq(x: any, z: any): number;
 export declare function xzDist(x: any, z: any): number;
 export declare function xzDistNoArr(pt1: any, x: any, z: any): number;
-export declare function sortDistFromPointAscendingFunction(sourcePoint: any, point1: any, point2: any): number;
+export declare function len2d(vec: any): number;
+/**
+ *
+ *
+ * @param pt
+ * @param linePt1
+ * @param linePt2
+ */
+export declare function distToClosestLinePoint(pt: any, linePt1: any, linePt2: any): number;
+export declare function getPerturbOffsetsInChunk(x: any, z: any, perturber: any, chunkSize: any, lookOutsideChunkDist: any): any[];
+export declare function getXZPerturbOffsetsFromAll(localI: any, localK: any, allOffsets: any, chunkSize: any, lookOutsideChunkDist: any): any;
+export declare function normalise2d(arr: any): void;
+export declare function dotProduct2d(arr1: any, arr2: any): number;
+export declare function mod(n: any, m: any): number;
 export interface NoiseHelper {
     getOctaves(x: number, z: number): number;
 }

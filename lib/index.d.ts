@@ -18,6 +18,7 @@ declare class WorldGenerator {
     biomeOffsetSimplex: SimplexCustomOctaveHelper;
     biomesTotalFrequency: number;
     cavesGenerator: CavesGenerator;
+    baseBiome: TestBiome;
     constructor(chunkSize: any, blockMetadata: any, seed: any);
     getChunk(array: any, x: any, y: any, z: any): void;
     _getChunk(array: any, x: any, y: any, z: any): void;
@@ -28,7 +29,7 @@ declare class WorldGenerator {
     _getBiomeZOffset(x: any, z: any): number;
     _getHeightMapVals(x: any, z: any, allClosestBiomePoints: any): {};
     _getTrunksAroundPoint(x: any, z: any, treeTrunks: any): any[];
-    _getTreeTrunksNearChunk(x: any, z: any, allClosestBiomePoints: any): Set<unknown>;
+    _getTreeTrunksNearChunk(x: any, z: any, heightMapVals: any, allClosestBiomePoints: any, caveInfos: any): Set<unknown>;
 }
 declare const _default: {
     WorldGenerator: typeof WorldGenerator;

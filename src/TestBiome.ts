@@ -71,27 +71,46 @@ export class TestBiome {
         //     return 0
         // }
 
-        const height = heightMapVals[this.xzId(x, z)]
+        // if (z > 0) {
+        //     return 0
+        // }
 
-        if (this._isCave(x, y, z, caveInfos)) {
-            // return this.blockMetadata["Water"].id
+        if (y < constants.bedrockLevel) {
             return 0
         }
 
-        if (y === height-1 && height < constants.seaLevel) {
+        if (y === constants.bedrockLevel) {
+            return this.blockMetadata["Bedrock"].id
+        }
+
+        const height = heightMapVals[this.xzId(x, z)]
+
+        if (y <= height && this._isCave(x, y, z, caveInfos)) {
+        // if (this._isCave(x, y, z, caveInfos)) {
+        //     return this.blockMetadata["Water"].id
+            return 0
+        }
+        else {
+            // if (y === height-1) {
+            //     return this.blockMetadata["Grass Block"].id
+            // }
+            // return 0
+        }
+
+        if (y === height && height < constants.seaLevel) {
             // The floorbed of oceans is sand
             return this.blockMetadata["Sand"].id
         }
 
-        if (y === height-1) {
+        if (y === height) {
             return this.topsoilBlockType
         }
 
-        if (y >= height-5 && y < height-1) {
+        if (y >= height-4 && y < height) {
             return this.lowsoilBlockType
         }
 
-        if (y < height-5) {
+        if (y < height-4) {
             return this.blockMetadata["Stone"].id
         }
 
@@ -118,16 +137,16 @@ export class TestBiome {
     _getTreeBlock(x, y, z, heightMapVals, treeTrunks) {
         const height = heightMapVals[this.xzId(x, z)]
 
-        if (y < height+this.treeHeight && treeTrunks.includes(this.xzId(x, z))) {
+        if (y <= height+this.treeHeight && treeTrunks.includes(this.xzId(x, z))) {
             return this.blockMetadata["Oak Log"].id
         }
 
-        if (y < height+this.treeHeight*3) {
+        if (y <= height+this.treeHeight*3) {
             for (let treeTrunkId of treeTrunks) {
                 const treeTrunkHeightmapVal = heightMapVals[treeTrunkId]
 
-                if (y-2 > treeTrunkHeightmapVal
-                    && y < treeTrunkHeightmapVal+this.treeHeight+this.treeRadius) {
+                if (y-3 > treeTrunkHeightmapVal
+                    && y <= treeTrunkHeightmapVal+this.treeHeight+this.treeRadius) {
                     return this.blockMetadata["Oak Leaves"].id
                 }
             }
