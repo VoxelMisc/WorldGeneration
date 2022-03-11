@@ -69,11 +69,10 @@ class WorldGenerator {
 			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		this.biomes = [
-			// this.testBiome,
 			{ biome: desertBiome, frequency: 1, cumuFreq: null }, // cumuFreq set below
 			{ biome: plainsBiome, frequency: 2, cumuFreq: null },
-			{ biome: forestBiome, frequency: 3, cumuFreq: null },
-			{ biome: oceanBiome, frequency: 1, cumuFreq: null },
+			{ biome: forestBiome, frequency: 2, cumuFreq: null },
+			{ biome: oceanBiome, frequency: 2, cumuFreq: null },
 			{ biome: rollingHillsBiome, frequency: 2, cumuFreq: null },
 		]
 

@@ -160,7 +160,7 @@ export class CavesGenerator {
 
 		this.spaghettCaves = [
 			{
-				count: 1,
+				count: 3,
 				thresholdNoiseSetup: [
 					{amplitude: 1.5, frequency: 1/300},
 					{amplitude: 0.5, frequency: 1/150},
