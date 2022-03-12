@@ -1,7 +1,9 @@
 import SimplexNoise from 'simplex-noise'
 import {PointsGenerator} from './PointsGenerator'
-import {NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper, xzId} from './util'
+import {NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper, xzDist, xzId} from './util'
 import constants from './constants'
+import Rand, {PRNG} from 'rand-seed'
+import {TreeGenerator} from './TreeGenerator'
 const gen = require('random-seed')
 
 
@@ -16,9 +18,6 @@ export class TestBiome {
 
     numOctaves = 5
 
-    treeHeight: number
-    treeRadius: number
-
     topsoilBlockType: number
     lowsoilBlockType: number
 
@@ -30,14 +29,16 @@ export class TestBiome {
 
     _heightmapSimplex: NoiseHelper
 
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
+    treeGenerator: TreeGenerator
+
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
         this.chunkSize = chunkSize
         this.blockMetadata = blockMetadata
-        this.treeHeight = treeHeight
-        this.treeRadius = treeRadius
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
+
+        this.treeGenerator = treeGenerator
 
         this._heightmapSimplex = new SimplexOctaveHelper({
             amplitude: this.initialAmplitude,
@@ -83,7 +84,7 @@ export class TestBiome {
             return this.blockMetadata["Bedrock"].id
         }
 
-        const height = heightMapVals[this.xzId(x, z)]
+        const height = heightMapVals[xzId(x, z)]
 
         if (y <= height && this._isCave(x, y, z, caveInfos)) {
         // if (this._isCave(x, y, z, caveInfos)) {
@@ -97,8 +98,8 @@ export class TestBiome {
             // return 0
         }
 
-        if (y === height && height < constants.seaLevel) {
-            // The floorbed of oceans is sand
+        if (y === height && height < constants.seaLevel-1) {
+            // The floorbed of oceans is sand (incase we have another biome extending into the sea)
             return this.blockMetadata["Sand"].id
         }
 
@@ -114,7 +115,7 @@ export class TestBiome {
             return this.blockMetadata["Stone"].id
         }
 
-        const treeBlock = this._getTreeBlock(x, y, z, heightMapVals, treeTrunks)
+        const treeBlock = this.treeGenerator._getTreeBlock(x, y, z, heightMapVals, treeTrunks)
         if (treeBlock !== 0) {
             return treeBlock
         }
@@ -134,27 +135,6 @@ export class TestBiome {
         return false
     }
 
-    _getTreeBlock(x, y, z, heightMapVals, treeTrunks) {
-        const height = heightMapVals[this.xzId(x, z)]
-
-        if (y <= height+this.treeHeight && treeTrunks.includes(this.xzId(x, z))) {
-            return this.blockMetadata["Oak Log"].id
-        }
-
-        if (y <= height+this.treeHeight*3) {
-            for (let treeTrunkId of treeTrunks) {
-                const treeTrunkHeightmapVal = heightMapVals[treeTrunkId]
-
-                if (y-3 > treeTrunkHeightmapVal
-                    && y <= treeTrunkHeightmapVal+this.treeHeight+this.treeRadius) {
-                    return this.blockMetadata["Oak Leaves"].id
-                }
-            }
-        }
-
-        return 0
-    }
-
     getHeightmapVal(x, z) {
         return this.offsettedHeight+this._heightmapSimplex.getOctaves(x, z)
     }
@@ -163,8 +143,8 @@ export class TestBiome {
 
 
 export class DesertBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
-        super(chunkSize, blockMetadata, `${seed}Desert`, {treeHeight, treeRadius})
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+        super(chunkSize, blockMetadata, treeGenerator, `${seed}Desert`)
 
         this.treeMinDist = null
 
@@ -186,8 +166,8 @@ export class DesertBiome extends TestBiome {
 
 
 export class PlainsBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
-        super(chunkSize, blockMetadata, `${seed}Plains`, {treeHeight, treeRadius})
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+        super(chunkSize, blockMetadata, treeGenerator, `${seed}Plains`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
@@ -208,12 +188,13 @@ export class PlainsBiome extends TestBiome {
 }
 
 export class ForestBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
-        super(chunkSize, blockMetadata, `${seed}Forest`, {treeHeight, treeRadius})
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+        super(chunkSize, blockMetadata, treeGenerator, `${seed}Forest`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
 
+        // If change this, change treeMinDistApart in TreeGenerator
         this.treeMinDist = 6
 
         this._heightmapSimplex = new SimplexCustomOctaveHelper([
@@ -232,8 +213,8 @@ export class ForestBiome extends TestBiome {
 export class OceanBiome extends TestBiome {
     // offsettedHeight = -60
     offsettedHeight = -10
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
-        super(chunkSize, blockMetadata, `${seed}Ocean`, {treeHeight, treeRadius})
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+        super(chunkSize, blockMetadata, treeGenerator, `${seed}Ocean`)
 
         this.topsoilBlockType = blockMetadata["Sand"].id
         this.lowsoilBlockType = blockMetadata["Sand"].id
@@ -252,8 +233,8 @@ export class OceanBiome extends TestBiome {
 }
 
 export class RollingHillsBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, seed, {treeHeight, treeRadius}) {
-        super(chunkSize, blockMetadata, `${seed}RollingHills`, {treeHeight, treeRadius})
+    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+        super(chunkSize, blockMetadata, treeGenerator, `${seed}RollingHills`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
 

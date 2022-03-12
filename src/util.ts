@@ -4,6 +4,10 @@ export function xzId(x, z) {
 	return `${x}|${z}`
 }
 
+export function getxzFromId(id) {
+	return id.split('|')
+}
+
 export function xzIdArr(arr) {
 	return `${arr[0]}|${arr[1]}`
 }

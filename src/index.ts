@@ -7,6 +7,8 @@ import {SimplexCustomOctaveHelper, SimplexOctaveHelper, TxzId, xzDist, xzId} fro
 // const gen = require('random-seed')
 import Rand, {PRNG} from 'rand-seed'
 import {CavesGenerator} from './CavesGenerator'
+import {TreeGenerator} from './TreeGenerator'
+import {closestBiomesForChunk} from './types'
 
 const profileGetChunk = false
 const profiler = profileGetChunk ? makeProfileHook(50, 'getChunk') : () => {}
@@ -17,9 +19,9 @@ class WorldGenerator {
 	biomePointGen: PointsGenerator
 
 	treeRadius = 2
-	treeHeight = 5
-	treeGen: PointsGenerator
 	neededOutsideChunkHeightRadius = this.treeRadius
+
+	treeGenerator: TreeGenerator
 
 	seed: string
 
@@ -35,38 +37,51 @@ class WorldGenerator {
 		this.baseBiome = new TestBiome(
 			chunkSize,
 			blockMetadata,
+			null,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
+
+		this.treeGenerator = new TreeGenerator(
+			this.treeRadius,
+			this.baseBiome,
+			chunkSize,
+			seed,
+			(pt) => {
+				return this._getBiome(pt[0], pt[1]).treeMinDist || 10000
+			},
+			blockMetadata
+		)
+		this.baseBiome.treeGenerator = this.treeGenerator
+
 		const desertBiome = new DesertBiome(
 			chunkSize,
 			blockMetadata,
+			this.treeGenerator,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		const plainsBiome = new PlainsBiome(
 			chunkSize,
 			blockMetadata,
+			this.treeGenerator,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		const forestBiome = new ForestBiome(
 			chunkSize,
 			blockMetadata,
+			this.treeGenerator,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		const oceanBiome = new OceanBiome(
 			chunkSize,
 			blockMetadata,
+			this.treeGenerator,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		const rollingHillsBiome = new RollingHillsBiome(
 			chunkSize,
 			blockMetadata,
+			this.treeGenerator,
 			seed,
-			{treeRadius: this.treeRadius, treeHeight: this.treeHeight}
 		)
 		this.biomes = [
 			{ biome: desertBiome, frequency: 1, cumuFreq: null }, // cumuFreq set below
@@ -85,26 +100,6 @@ class WorldGenerator {
 		this.chunkSize = chunkSize
 
 		this.biomePointGen = new PointsGenerator(150, false, true, seed, 8)
-
-		let treeMinDist = 10000
-		for (const { biome } of this.biomes) {
-			if (biome.treeMinDist !== null) {
-				treeMinDist = Math.min(treeMinDist, biome.treeMinDist)
-			}
-		}
-		this.treeGen = new PointsGenerator(
-			// We actually use densityFunc to find the minDist for trees.
-			// Use this to ensure we don't end up with absolutely massive cells.
-			// BUT this does mean the max minDist can't be massively larger than the min dist
-			treeMinDist,
-			true,
-			false,
-			seed,
-			300,
-			(pt) => {
-				return this._getBiome(pt[0], pt[1]).treeMinDist
-			}
-		)
 
 		this.biomeOffsetSimplex = new SimplexCustomOctaveHelper([
 			{
@@ -132,19 +127,18 @@ class WorldGenerator {
 	}
 
 	_getChunk(array, x, y, z) {
-		let allClosestBiomePoints
-		allClosestBiomePoints = this._getClosest2BiomePoints(x, z)
+		const allClosestBiomePoints = this._getClosestBiomesForChunk(x, z)
 		const heightMapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
 
 		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z)
-		const treeTrunks = this._getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
+		const treeTrunks = this.treeGenerator._getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
 
 		for (let i = 0; i < this.chunkSize; ++i) {
 			for (let k = 0; k < this.chunkSize; ++k) {
-				const nearbyTrunks = this._getTrunksAroundPoint(x+i, z+k, treeTrunks)
+				const nearbyTrunks = this.treeGenerator._getTrunksAroundPoint(x+i, z+k, treeTrunks)
 
-				const closestBiomePts = allClosestBiomePoints[xzId(x+i, z+k)]
-				const biome = this._getBiomeForBiomePoint(closestBiomePts[0].pt)
+				const closestBiomes = allClosestBiomePoints[xzId(x+i, z+k)]
+				const biome = closestBiomes[0].biome
 
 				const biomeArgs = {
 					array,
@@ -163,29 +157,33 @@ class WorldGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getClosest2BiomePoints(x, z) {
-		const closestBiomePts = {}
+	_getClosestBiomesForChunk(x, z): closestBiomesForChunk {
+		const closestBiomes = {}
 		// const zOffsets = this._getBiomeZOffsets(z)
 
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
-			// const xOffset = Math.floor(this.biomeOffsetSimplex.getOctaves(i, 0))
 			for (let k = -this.neededOutsideChunkHeightRadius; k < this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
-				// const zOffset = zOffsets[k+this.neededOutsideChunkHeightRadius]
-				// closestBiomePts[xzId(i, z+k)] = this.biomePointGen.getKClosestPoints(i+xOffset, z+k+zOffset)
-				// closestBiomePts[xzId(i, z+k)] = this.biomePointGen.getKClosestPointsWithWeights(i, z+k)
-
 				// Using 2d noise to perturb - looks much better than 1d!!!
 				const xOffset = this._getBiomeXOffset(i, z+k)
 				// Add random offsets to the z perturbation (to simulate sampling 2 noises instead of the same)
 				const zOffset = this._getBiomeZOffset(i, z+k)
-				closestBiomePts[xzId(i, z+k)] = this.biomePointGen.getKClosestPointsWithWeights(i+xOffset, z+k+zOffset, 60)
+
+				const closestPts = this.biomePointGen.getKClosestPointsWithWeights(i+xOffset, z+k+zOffset, 60)
+				const closestBiomesForXZ = []
+				for (const {weight, pt} of closestPts) {
+					closestBiomesForXZ.push({
+						weight,
+						biome: this._getBiomeForBiomePoint(pt)
+					})
+				}
+				closestBiomes[xzId(i, z+k)] = closestBiomesForXZ
 			}
 		}
-		return closestBiomePts
+		return closestBiomes
 	}
 
 	// x and z should be the center of the biome, as provided by biomePointGenerator closestPoint
-	_getBiomeForBiomePoint(biomePt): TestBiome {
+	_getBiomeForBiomePoint(biomePt: number[]): TestBiome {
 		const rand = new Rand(`${biomePt[0]}|${biomePt[1]}|${this.seed}`, PRNG.mulberry32);
 		const biomeInt = Math.floor((rand.next()-0.00001)*this.biomesTotalFrequency)
 		let freqSeenSoFar = 0
@@ -198,7 +196,7 @@ class WorldGenerator {
 		return this.biomes[i-1].biome
 	}
 
-	// Only to be used for tree density!! - _getClosest2BiomePoints and _getBiomeForBiomePoint should be used for blocks/heightmap etc picking
+	// Only to be used for tree density!! - _getClosestBiomesForChunk and _getBiomeForBiomePoint should be used for blocks/heightmap etc picking
 	_getBiome(x, z) {
 		const xOffset = this._getBiomeXOffset(x, z)
 		const zOffset = this._getBiomeZOffset(x, z)
@@ -215,15 +213,15 @@ class WorldGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getHeightMapVals(x, z, allClosestBiomePoints) {
+	_getHeightMapVals(x, z, allClosestBiomesForChunk: closestBiomesForChunk) {
 		const heights = {}
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
 			for (let k = z-this.neededOutsideChunkHeightRadius; k < z+this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
 
 				// no smoothing
 
-				// const closestBiomePts = allClosestBiomePoints[xzId(i, k)]
-				// const closestBiome = this._getBiomeForBiomePoint(closestBiomePts[0].pt)
+				// const closestBiomes = allClosestBiomesForChunk[xzId(i, k)]
+				// const closestBiome = closestBiomes[0].biome
 				// heights[xzId(i, k)] = closestBiome.getHeightmapVal(i, k)
 
 
@@ -231,60 +229,20 @@ class WorldGenerator {
 
 				let height = 0
 				let weights = 0
-				const closestBiomePts = allClosestBiomePoints[xzId(i, k)]
-				for (const {pt, weight} of closestBiomePts) {
-					const biome = this._getBiomeForBiomePoint(pt)
+				const closestBiomePts = allClosestBiomesForChunk[xzId(i, k)]
+				for (const {biome, weight} of closestBiomePts) {
 					height += biome.getHeightmapVal(i, k)*weight
 					weights += weight
 				}
 
-				if (Math.abs(1-weights) > 0.001) {
-					throw new Error("Weights don't add up!")
-				}
+				// if (Math.abs(1-weights) > 0.001) {
+				// 	throw new Error("Weights don't add up!")
+				// }
 
 				heights[xzId(i, k)] = Math.floor(height)
 			}
 		}
 		return heights
-	}
-
-	_getTrunksAroundPoint(x, z, treeTrunks) {
-		const trunks = []
-		for (let i = x-this.treeRadius; i<x+this.treeRadius+1; i++) {
-			for (let k = z-this.treeRadius; k<z+this.treeRadius+1; k++) {
-				const treeTrunkId = xzId(i, k)
-				if (treeTrunks.has(treeTrunkId)) {
-					trunks.push(treeTrunkId)
-				}
-			}
-		}
-		return trunks
-	}
-
-
-	// x and z are coords of bottom left block in chunk
-	_getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos) {
-		const trees = new Set()
-		for (let i = x-this.treeRadius; i < x+this.chunkSize+this.treeRadius; i++) {
-			for (let k = z-this.treeRadius; k < z+this.chunkSize+this.treeRadius; k++) {
-				const xzID = xzId(i, k)
-				const closestBiomePts = allClosestBiomePoints[xzID]
-				const biome = this._getBiomeForBiomePoint(closestBiomePts[0].pt)
-				if (biome.treeMinDist !== null) {
-					const isTreeTrunk = this.treeGen.isPoint(i, k)
-					if (isTreeTrunk) {
-						// Check not on top of cave
-						const heightmapVal = heightMapVals[xzID]
-						// const caveInfo = caveInfos[xzID]
-						// console.log(i, k, caveInfo)
-						if (!this.baseBiome._isCave(i, heightmapVal, k, caveInfos)) {
-							trees.add(xzID)
-						}
-					}
-				}
-			}
-		}
-		return trees
 	}
 }
 
