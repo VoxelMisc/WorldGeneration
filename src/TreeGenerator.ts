@@ -16,6 +16,7 @@ export class TreeGenerator {
 	// Also needs updating if another biome becomes the one with the minimum dist between trees
 	treeMinDistApart = 6
 
+	minTreeHeight = 4
 	maxTreeHeight = 7
 
 	constructor(treeRadius, baseBiome, chunkSize, seed, treeDensityFunc, blockMetadata) {
@@ -41,8 +42,8 @@ export class TreeGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomesForChunk: closestBiomesForChunk, caveInfos) {
-		const trees = {}
+	_getTreeTrunksForBlocksInChunk(x, z, heightMapVals, allClosestBiomesForChunk: closestBiomesForChunk, caveInfos) {
+		const treesAroundPoints = {}
 		for (let i = x-this.treeRadius; i < x+this.chunkSize+this.treeRadius; i++) {
 			for (let k = z-this.treeRadius; k < z+this.chunkSize+this.treeRadius; k++) {
 				const xzID = xzId(i, k)
@@ -57,36 +58,34 @@ export class TreeGenerator {
 						// console.log(i, k, caveInfo)
 						if (!this.baseBiome._isCave(i, heightmapVal, k, caveInfos)) {
 							const rand = new Rand(`${i}${k}${this.seed}treeHeight`, PRNG.mulberry32);
-							const treeMinHeight = 4
-							const treeHeight = Math.floor(rand.next()*(this.maxTreeHeight-treeMinHeight)) + treeMinHeight
+							const treeHeight = Math.floor(rand.next()*(this.maxTreeHeight-this.minTreeHeight)) + this.minTreeHeight
 
-							trees[xzID] = {
+							this._addTreeToTreesNearbyBlocks(treesAroundPoints, i, k, {
 								id: xzID,
 								height: treeHeight,
-							}
+							}, x, z)
 						}
 					}
 				}
 			}
 		}
-		return trees
+		return treesAroundPoints
 	}
 
-	_getTrunksAroundPoint(x, z, treeTrunks) {
-		const trunks = []
-		for (let i = x-this.treeRadius; i<x+this.treeRadius+1; i++) {
-			for (let k = z-this.treeRadius; k<z+this.treeRadius+1; k++) {
-				const treeTrunkId = xzId(i, k)
-				const treeTrunk = treeTrunks[treeTrunkId]
-				if (treeTrunk !== undefined) {
-					trunks.push(treeTrunk)
+	_addTreeToTreesNearbyBlocks(trees, x, z, tree, leftmostChunkX, bottommostChunkZ) {
+		for (let i = x-this.treeRadius; i < x+this.treeRadius+1; i++) {
+			for (let k = z-this.treeRadius; k < z+this.treeRadius+1; k++) {
+				if (i >= leftmostChunkX && i < leftmostChunkX+32 && k >= bottommostChunkZ && k < bottommostChunkZ+32) {
+					const xzID = xzId(i, k)
+					const treesForBlock = trees[xzID] || []
+					treesForBlock.push(tree)
+					trees[xzID] = treesForBlock
 				}
 			}
 		}
-		return trunks
 	}
 
-	_getTreeBlock(x, y, z, heightMapVals, treeTrunks) {
+	getTreeBlock(x, y, z, heightMapVals, treeTrunks) {
 		const height = heightMapVals[xzId(x, z)]
 
 		if (y <= height+this.maxTreeHeight) {

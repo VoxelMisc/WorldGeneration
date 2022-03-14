@@ -38,7 +38,7 @@ export class CavesGenerator {
 		// count: 0,
 		maxWidth: 40,
 		minWidth: 15,
-		distApartInChunks: 4,
+		distApartInChunks: 6,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
@@ -80,7 +80,7 @@ export class CavesGenerator {
 		minWidth: 10,
 		maxLength: 90,
 		minLength: 50,
-		distApartInChunks: 4,
+		distApartInChunks: 6,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
@@ -116,7 +116,7 @@ export class CavesGenerator {
 	sphereCaves = {
 		// count: 0,
 		count: 1,
-		maxRadius: 5,
+		maxRadius: 6,
 		minRadius: 20,
 		distApartInChunks: 3,
 		distPerturbNoiseSetup: [

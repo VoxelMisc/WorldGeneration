@@ -14,6 +14,10 @@ export function xzIdArr(arr) {
 
 export type TxzId = string
 
+export function manhattanXzDist(pt1, x, z) {
+	return Math.abs(pt1[0]-x)+Math.abs(pt1[1]-z)
+}
+
 export function xzDistSq(x, z) {
 	const a = x[0]-z[0]
 	const b = x[1]-z[1]

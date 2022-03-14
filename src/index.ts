@@ -37,7 +37,7 @@ class WorldGenerator {
 		this.baseBiome = new TestBiome(
 			chunkSize,
 			blockMetadata,
-			null,
+			this,
 			seed,
 		)
 
@@ -51,50 +51,51 @@ class WorldGenerator {
 			},
 			blockMetadata
 		)
-		this.baseBiome.treeGenerator = this.treeGenerator
 
 		const desertBiome = new DesertBiome(
 			chunkSize,
 			blockMetadata,
-			this.treeGenerator,
+			this,
 			seed,
 		)
 		const plainsBiome = new PlainsBiome(
 			chunkSize,
 			blockMetadata,
-			this.treeGenerator,
+			this,
 			seed,
 		)
 		const forestBiome = new ForestBiome(
 			chunkSize,
 			blockMetadata,
-			this.treeGenerator,
+			this,
 			seed,
 		)
 		const oceanBiome = new OceanBiome(
 			chunkSize,
 			blockMetadata,
-			this.treeGenerator,
+			this,
 			seed,
 		)
 		const rollingHillsBiome = new RollingHillsBiome(
 			chunkSize,
 			blockMetadata,
-			this.treeGenerator,
+			this,
 			seed,
 		)
 		this.biomes = [
-			{ biome: desertBiome, frequency: 1, cumuFreq: null }, // cumuFreq set below
-			{ biome: plainsBiome, frequency: 2, cumuFreq: null },
-			{ biome: forestBiome, frequency: 2, cumuFreq: null },
-			{ biome: oceanBiome, frequency: 2, cumuFreq: null },
-			{ biome: rollingHillsBiome, frequency: 2, cumuFreq: null },
+			{ biome: desertBiome, frequency: 10, cumuFreq: null }, // cumuFreq set below
+			{ biome: plainsBiome, frequency: 20, cumuFreq: null },
+			{ biome: forestBiome, frequency: 20, cumuFreq: null },
+			{ biome: oceanBiome, frequency: 20, cumuFreq: null },
+			{ biome: rollingHillsBiome, frequency: 20, cumuFreq: null },
 		]
 
 		this.biomesTotalFrequency = 0
 		for (const biomeInfo of this.biomes) {
 			this.biomesTotalFrequency += biomeInfo.frequency
 			biomeInfo.cumuFreq = this.biomesTotalFrequency
+
+			biomeInfo.biome.init()
 		}
 
 		this.chunkSize = chunkSize
@@ -131,13 +132,12 @@ class WorldGenerator {
 		const heightMapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
 
 		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z)
-		const treeTrunks = this.treeGenerator._getTreeTrunksNearChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
+		const treeTrunksAroundPoints = this.treeGenerator._getTreeTrunksForBlocksInChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
 
 		for (let i = 0; i < this.chunkSize; ++i) {
 			for (let k = 0; k < this.chunkSize; ++k) {
-				const nearbyTrunks = this.treeGenerator._getTrunksAroundPoint(x+i, z+k, treeTrunks)
-
-				const closestBiomes = allClosestBiomePoints[xzId(x+i, z+k)]
+				const xzID = xzId(x+i, z+k)
+				const closestBiomes = allClosestBiomePoints[xzID]
 				const biome = closestBiomes[0].biome
 
 				const biomeArgs = {
@@ -148,7 +148,7 @@ class WorldGenerator {
 					localX: i,
 					localZ: k,
 					heightMapVals,
-					nearbyTrunks,
+					nearbyTrunks: treeTrunksAroundPoints[xzID] || [],
 					caveInfos
 				}
 				biome.getChunkColumn(biomeArgs)
@@ -162,13 +162,13 @@ class WorldGenerator {
 		// const zOffsets = this._getBiomeZOffsets(z)
 
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
-			for (let k = -this.neededOutsideChunkHeightRadius; k < this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
+			for (let k = z-this.neededOutsideChunkHeightRadius; k < z+this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
 				// Using 2d noise to perturb - looks much better than 1d!!!
-				const xOffset = this._getBiomeXOffset(i, z+k)
+				const xOffset = this._getBiomeXOffset(i, k)
 				// Add random offsets to the z perturbation (to simulate sampling 2 noises instead of the same)
-				const zOffset = this._getBiomeZOffset(i, z+k)
+				const zOffset = this._getBiomeZOffset(i, k)
 
-				const closestPts = this.biomePointGen.getKClosestPointsWithWeights(i+xOffset, z+k+zOffset, 60)
+				const closestPts = this.biomePointGen.getKClosestPointsWithWeights(i+xOffset, k+zOffset, 60)
 				const closestBiomesForXZ = []
 				for (const {weight, pt} of closestPts) {
 					closestBiomesForXZ.push({
@@ -176,7 +176,7 @@ class WorldGenerator {
 						biome: this._getBiomeForBiomePoint(pt)
 					})
 				}
-				closestBiomes[xzId(i, z+k)] = closestBiomesForXZ
+				closestBiomes[xzId(i, k)] = closestBiomesForXZ
 			}
 		}
 		return closestBiomes
@@ -196,7 +196,7 @@ class WorldGenerator {
 		return this.biomes[i-1].biome
 	}
 
-	// Only to be used for tree density!! - _getClosestBiomesForChunk and _getBiomeForBiomePoint should be used for blocks/heightmap etc picking
+	// Only to be used for tree density and flower patches!! - _getClosestBiomesForChunk and _getBiomeForBiomePoint should be used for blocks/heightmap etc picking
 	_getBiome(x, z) {
 		const xOffset = this._getBiomeXOffset(x, z)
 		const zOffset = this._getBiomeZOffset(x, z)
@@ -247,3 +247,4 @@ class WorldGenerator {
 }
 
 export default { WorldGenerator }
+export { WorldGenerator }

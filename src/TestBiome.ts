@@ -1,9 +1,11 @@
 import SimplexNoise from 'simplex-noise'
 import {PointsGenerator} from './PointsGenerator'
-import {NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper, xzDist, xzId} from './util'
+import {manhattanXzDist, NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper, xzDist, xzId} from './util'
 import constants from './constants'
 import Rand, {PRNG} from 'rand-seed'
 import {TreeGenerator} from './TreeGenerator'
+import {FloraGenerator} from './FloraGenerator'
+import { WorldGenerator } from './index'
 const gen = require('random-seed')
 
 
@@ -29,16 +31,35 @@ export class TestBiome {
 
     _heightmapSimplex: NoiseHelper
 
-    treeGenerator: TreeGenerator
+    worldGenerator: WorldGenerator
 
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
+    floraGenerator: FloraGenerator
+    maxFloraHeight = 1
+    grassChance = 0.025
+
+    flowerPatchDistApart = 40
+    poppyChance = 1
+    daisyChance = 1
+    pinkTulipChance = 1
+
+    // These are rarer flowers, found in flower plains/forests
+    forgetMeNotChance = 0
+    whiteTulipChance = 0
+    orangeTulipChance = 0
+    redTulipChance = 0
+    dandelionChance = 0
+
+    seed: string
+
+    constructor(chunkSize, blockMetadata, worldGenerator: WorldGenerator, seed) {
         this.chunkSize = chunkSize
         this.blockMetadata = blockMetadata
+        this.seed = seed
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
 
-        this.treeGenerator = treeGenerator
+        this.worldGenerator = worldGenerator
 
         this._heightmapSimplex = new SimplexOctaveHelper({
             amplitude: this.initialAmplitude,
@@ -46,6 +67,21 @@ export class TestBiome {
             numOctaves: this.numOctaves,
             amplitudeMultiplier: 0.5,
             seed: `${seed}TestBiome`
+        })
+    }
+
+    init() {
+        // We need grassChance to be set by inheritees before we can construct this
+        this.floraGenerator = new FloraGenerator(this.blockMetadata, this.worldGenerator, `${this.seed}flora`, this.grassChance, {
+            flowerPatchDistApart: this.flowerPatchDistApart,
+            dandelionChance: this.dandelionChance,
+            poppyChance: this.poppyChance,
+            forgetMeNotChance: this.forgetMeNotChance,
+            redTulipChance: this.redTulipChance,
+            pinkTulipChance: this.pinkTulipChance,
+            whiteTulipChance: this.whiteTulipChance,
+            orangeTulipChance: this.orangeTulipChance,
+            daisyChance: this.daisyChance,
         })
     }
 
@@ -115,7 +151,7 @@ export class TestBiome {
             return this.blockMetadata["Stone"].id
         }
 
-        const treeBlock = this.treeGenerator._getTreeBlock(x, y, z, heightMapVals, treeTrunks)
+        const treeBlock = this.worldGenerator.treeGenerator.getTreeBlock(x, y, z, heightMapVals, treeTrunks)
         if (treeBlock !== 0) {
             return treeBlock
         }
@@ -123,6 +159,19 @@ export class TestBiome {
         if (y < constants.seaLevel) {
             return this.blockMetadata["Water"].id
         }
+
+        if (y <= height+this.maxFloraHeight) {
+            const groundIsCave = this._isCave(x, height, z, caveInfos)
+            if (!groundIsCave) {
+                const floraBlock = this.floraGenerator.getBiomeFlora(x, y, z, height)
+                if (floraBlock) {
+                    return floraBlock
+                }
+            }
+        }
+
+
+        return 0
     }
 
     _isCave(x, y, z, caveInfos) {
@@ -143,8 +192,11 @@ export class TestBiome {
 
 
 export class DesertBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
-        super(chunkSize, blockMetadata, treeGenerator, `${seed}Desert`)
+    grassChance = 0
+    flowerPatchDistApart = null
+
+    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Desert`)
 
         this.treeMinDist = null
 
@@ -166,8 +218,17 @@ export class DesertBiome extends TestBiome {
 
 
 export class PlainsBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
-        super(chunkSize, blockMetadata, treeGenerator, `${seed}Plains`)
+    grassChance = 0.18
+    
+    flowerPatchDistApart = 20
+    forgetMeNotChance = 1
+    whiteTulipChance = 1
+    orangeTulipChance = 1
+    redTulipChance = 1
+    dandelionChance = 1
+
+    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Plains`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
@@ -188,8 +249,8 @@ export class PlainsBiome extends TestBiome {
 }
 
 export class ForestBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
-        super(chunkSize, blockMetadata, treeGenerator, `${seed}Forest`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Forest`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
@@ -211,10 +272,13 @@ export class ForestBiome extends TestBiome {
 }
 
 export class OceanBiome extends TestBiome {
+    grassChance = 0
+    flowerPatchDistApart = null
+
     // offsettedHeight = -60
     offsettedHeight = -10
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
-        super(chunkSize, blockMetadata, treeGenerator, `${seed}Ocean`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Ocean`)
 
         this.topsoilBlockType = blockMetadata["Sand"].id
         this.lowsoilBlockType = blockMetadata["Sand"].id
@@ -233,8 +297,8 @@ export class OceanBiome extends TestBiome {
 }
 
 export class RollingHillsBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, treeGenerator, seed) {
-        super(chunkSize, blockMetadata, treeGenerator, `${seed}RollingHills`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}RollingHills`)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
 
