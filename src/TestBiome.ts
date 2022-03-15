@@ -77,7 +77,7 @@ export class TestBiome {
             seed: `${seed}TestBiome`
         })
 
-        this.oreGenerator = new OreGenerator(blockMetadata, seed)
+        this.oreGenerator = new OreGenerator(blockMetadata, seed, chunkSize)
     }
 
     init() {
@@ -103,10 +103,9 @@ export class TestBiome {
     }
 
     // globalX, globalY are the global co-ordinates of the column. GlobalY is bottom y coordinate of chunk
-    getChunkColumn({array, globalX, globalY, globalZ, localX, localZ, heightMapVals, nearbyTrunks, caveInfos}) {
-        const columnOres = this.oreGenerator.getOreBlocksNearColumn(globalX, globalZ)
+    getChunkColumn({array, globalX, globalY, globalZ, localX, localZ, heightMapVals, nearbyTrunks, caveInfos, chunkOres}) {
         for (let j = 0; j < this.chunkSize; ++j) {
-            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightMapVals, nearbyTrunks, caveInfos, columnOres)
+            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightMapVals, nearbyTrunks, caveInfos, chunkOres)
             array.set(localX, j, localZ, blockId)
         }
     }
@@ -115,7 +114,7 @@ export class TestBiome {
         return `${x}|${z}`
     }
 
-    _getBlock(x, y, z, heightMapVals, treeTrunks, caveInfos, columnOres) {
+    _getBlock(x, y, z, heightMapVals, treeTrunks, caveInfos, chunkOres) {
         // // console.log("Calling is cave")
         // if (this._isCave(x, y, z, caveInfos)) {
         //     // console.log("Is cave! yay")
@@ -166,7 +165,7 @@ export class TestBiome {
         }
 
         if (y < height-4) {
-            const oreBlock = this.oreGenerator.getOreBlock(x, y, z, columnOres)
+            const oreBlock = this.oreGenerator.getOreBlock(x, y, z, chunkOres)
             if (oreBlock) {
                 return oreBlock
             }

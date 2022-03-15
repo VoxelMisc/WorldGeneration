@@ -3,6 +3,7 @@ import { samplePoisson } from "@thi.ng/poisson";
 import { makeProfileHook } from './profileHook'
 import {xzDist, xzDistNoArr} from './util'
 import {ArrayLikeIterable, Fn} from '@thi.ng/api'
+import Rand, {PRNG} from 'rand-seed'
 const gen = require('random-seed')
 
 const profilePoints = false
@@ -23,6 +24,8 @@ export class PointsGenerator {
 	useKthClosestPoint: boolean
 
 	seed: string
+
+	useJitteredGrid: boolean
 
 	constructor(
 		minDistanceBetweenPoints: number,
@@ -55,6 +58,8 @@ export class PointsGenerator {
 		this.useKthClosestPoint = useKthClosestPoint
 
 		this.seed = seed
+
+		this.useJitteredGrid = useJitteredGrid
 
 		console.log(this.minDist, this.gridSize)
 	}
@@ -114,6 +119,13 @@ export class PointsGenerator {
 		this._getPointsSurroundingCell(cellCoord, cell)
 
 		return this._getClosestPointsForGeneratedCell(cell, x, z, distanceToSmoothAt)
+	}
+
+	getPointsAroundPoint(x, z) {
+		const cellCoord = this.getCellCoordFromGlobalCoord(x, z)
+		const cell = this.getCell(cellCoord[0], cellCoord[1])
+
+		return this._getPointsSurroundingCell(cellCoord, cell)
 	}
 
 	_getPointsSurroundingCell(cellCoord, cell) {
@@ -244,18 +256,38 @@ export class PointsGenerator {
 		const startX = cellX*this.gridSize
 		const startZ = cellZ*this.gridSize
 
-		// let times = 0
-		const index = new KdTreeSet(2);
-		const pts = samplePoisson({
-			index,
-			points: () => {
-				return [startX+cellRand(Math.floor(this.gridSize-this.minDist)-1), startZ+cellRand(Math.floor(this.gridSize-this.minDist)-1)]
-			},
-			density: this.densityFunc ? this.densityFunc : this.minDist,
-			max: 10000,
-			quality: 40,
-			// density: (p) => fit01(Math.pow(dist(p, [250, 250]) / 250, 2), 2, 10),
-		});
+		let pts
+		if (!this.useJitteredGrid) {
+			const index = new KdTreeSet(2);
+			pts = samplePoisson({
+				index,
+				points: () => {
+					return [startX+cellRand(Math.floor(this.gridSize-this.minDist)-1), startZ+cellRand(Math.floor(this.gridSize-this.minDist)-1)]
+				},
+				density: this.densityFunc ? this.densityFunc : this.minDist,
+				max: 10000,
+				quality: 40,
+				// density: (p) => fit01(Math.pow(dist(p, [250, 250]) / 250, 2), 2, 10),
+			});
+		}
+		else {
+			const jitterRandGen = new Rand(`${cellX}${cellZ}${this.seed}jitter`, PRNG.mulberry32);
+
+			pts = []
+
+			const endX = startX+this.gridSize
+			const endZ = startZ+this.gridSize
+			// let i = 0
+			for (let x = startX; x < endX; x += this.minDist) {
+				for (let z = startZ; z < endZ; z += this.minDist) {
+					const xPt = x+Math.floor(jitterRandGen.next()*this.minDist)
+					const zPt = z+Math.floor(jitterRandGen.next()*this.minDist)
+					pts.push([xPt, zPt])
+					// i++
+				}
+			}
+		}
+
 
 		let pointsSet
 		if (this.useIsPoint) {
@@ -265,11 +297,10 @@ export class PointsGenerator {
 			}
 		}
 
-		// console.log("Times", times)
 
 		return {
 			pointsSet,
-			points: this.useKthClosestPoint ? pts : undefined,
+			points: this.useKthClosestPoint ? pts : null,
 		}
 
 		// return pts

@@ -134,6 +134,11 @@ class WorldGenerator {
 		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z)
 		const treeTrunksAroundPoints = this.treeGenerator._getTreeTrunksForBlocksInChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
 
+		// Generate ores based on the biome in the center of the chunk
+		const centerXZId = xzId(x+this.chunkSize/2, z+this.chunkSize/2)
+		const centerBiome = allClosestBiomePoints[centerXZId][0].biome
+		const chunkOres = centerBiome.oreGenerator.getOreBlocksForChunk(x, y, z)
+		
 		for (let i = 0; i < this.chunkSize; ++i) {
 			for (let k = 0; k < this.chunkSize; ++k) {
 				const xzID = xzId(x+i, z+k)
@@ -149,7 +154,8 @@ class WorldGenerator {
 					localZ: k,
 					heightMapVals,
 					nearbyTrunks: treeTrunksAroundPoints[xzID] || [],
-					caveInfos
+					caveInfos,
+					chunkOres
 				}
 				biome.getChunkColumn(biomeArgs)
 			}
