@@ -38,7 +38,7 @@ export class CavesGenerator {
 		// count: 0,
 		maxWidth: 40,
 		minWidth: 15,
-		distApartInChunks: 6,
+		distApartInChunks: 4,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
@@ -59,10 +59,10 @@ export class CavesGenerator {
 			{ amplitude: 2, frequency: 1/7, },
 			{ amplitude: 2, frequency: 1/15, },
 		],
-		minHeight: 27,
-		maxHeight: 70,
-		minBottomPit: -70,
-		maxBottomPit: -15,
+		minHeight: 25,
+		maxHeight: 55,
+		minBottomPit: -90,
+		maxBottomPit: -25,
 		// minBottomPit: -10,
 		// maxBottomPit: -10,
 
@@ -80,7 +80,7 @@ export class CavesGenerator {
 		minWidth: 10,
 		maxLength: 90,
 		minLength: 50,
-		distApartInChunks: 6,
+		distApartInChunks: 4,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
@@ -103,8 +103,8 @@ export class CavesGenerator {
 		// ],
 		minHeight: 25,
 		maxHeight: 55,
-		maxBottomRavine: -70,
-		minBottomRavine: -15,
+		maxBottomRavine: -90,
+		minBottomRavine: -5,
 
 		generators: [],
 		distPerturbNoises: [],
@@ -160,7 +160,7 @@ export class CavesGenerator {
 
 		this.spaghettCaves = [
 			{
-				count: 3,
+				count: 4,
 				thresholdNoiseSetup: [
 					{amplitude: 1.5, frequency: 1/300},
 					{amplitude: 0.5, frequency: 1/150},

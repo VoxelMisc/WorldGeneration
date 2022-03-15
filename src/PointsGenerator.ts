@@ -14,8 +14,7 @@ export class PointsGenerator {
 
 	gridSize: number
 
-	maxStoredCells = 30
-	pointsPerCell: number
+	maxStoredCells = 50
 
 	_currCells = []
 	_tempCellCoord = [0, 0]
@@ -25,18 +24,31 @@ export class PointsGenerator {
 
 	seed: string
 
-	constructor(minDistanceBetweenPoints: number, useIsPoint: boolean, useKthClosestPoint: boolean, seed: string, pointsPerCell: number, densityFunc=null) {
+	constructor(
+		minDistanceBetweenPoints: number,
+        useIsPoint: boolean,
+        useKthClosestPoint: boolean,
+        seed: string,
+        pointsPerCell: number,
+        densityFunc=null,
+		useJitteredGrid=false // When true, many of the other above settings are ignored
+	) {
 		console.assert(Number.isInteger(minDistanceBetweenPoints))
 
 		this.minDist = minDistanceBetweenPoints
 		this.densityFunc = densityFunc
 		// this.gridSize = minDistanceBetweenPoints * 10
 
-		this.pointsPerCell = pointsPerCell
+		this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
+		const remainder = this.gridSize%minDistanceBetweenPoints
+		if (remainder !== 0) {
+			// Round gridsize up to the nearest multiple of minDistanceBetweenPoints
+			// Needed for jittered grid
+			this.gridSize += minDistanceBetweenPoints-remainder
+		}
 
-		this.gridSize = Math.floor(Math.sqrt(this.pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
 		// const circleRadius = minDistanceBetweenPoints/2
-		// this.gridSize = Math.floor(Math.sqrt(this.pointsPerCell*Math.PI*circleRadius*circleRadius))
+		// this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.PI*circleRadius*circleRadius))
 		// console.log("grid size", this.gridSize, "for minDist", minDistanceBetweenPoints)
 
 		this.useIsPoint = useIsPoint
@@ -241,7 +253,7 @@ export class PointsGenerator {
 			},
 			density: this.densityFunc ? this.densityFunc : this.minDist,
 			max: 10000,
-			quality: 80,
+			quality: 40,
 			// density: (p) => fit01(Math.pow(dist(p, [250, 250]) / 250, 2), 2, 10),
 		});
 

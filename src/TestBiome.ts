@@ -6,6 +6,7 @@ import Rand, {PRNG} from 'rand-seed'
 import {TreeGenerator} from './TreeGenerator'
 import {FloraGenerator} from './FloraGenerator'
 import { WorldGenerator } from './index'
+import {OreGenerator} from './OreGenerator'
 const gen = require('random-seed')
 
 
@@ -33,14 +34,21 @@ export class TestBiome {
 
     worldGenerator: WorldGenerator
 
+    oreGenerator: OreGenerator
+
     floraGenerator: FloraGenerator
-    maxFloraHeight = 1
+    maxCactusHeight = 4
+    maxFloraHeight = this.maxCactusHeight
     grassChance = 0.025
 
     flowerPatchDistApart = 40
     poppyChance = 1
     daisyChance = 1
     pinkTulipChance = 1
+
+    // This is a 0-1 scalar
+    // We make assumption that biomes with cactus don't have other flora
+    cactusChance = 0
 
     // These are rarer flowers, found in flower plains/forests
     forgetMeNotChance = 0
@@ -68,27 +76,37 @@ export class TestBiome {
             amplitudeMultiplier: 0.5,
             seed: `${seed}TestBiome`
         })
+
+        this.oreGenerator = new OreGenerator(blockMetadata, seed)
     }
 
     init() {
-        // We need grassChance to be set by inheritees before we can construct this
-        this.floraGenerator = new FloraGenerator(this.blockMetadata, this.worldGenerator, `${this.seed}flora`, this.grassChance, {
-            flowerPatchDistApart: this.flowerPatchDistApart,
-            dandelionChance: this.dandelionChance,
-            poppyChance: this.poppyChance,
-            forgetMeNotChance: this.forgetMeNotChance,
-            redTulipChance: this.redTulipChance,
-            pinkTulipChance: this.pinkTulipChance,
-            whiteTulipChance: this.whiteTulipChance,
-            orangeTulipChance: this.orangeTulipChance,
-            daisyChance: this.daisyChance,
-        })
+        // We need grassChance/cactusChance to be set by inheritees before we can construct this
+        this.floraGenerator = new FloraGenerator(
+            this.blockMetadata,
+            this.worldGenerator,
+            `${this.seed}flora`,
+            this.grassChance,
+            { cactusChance: this.cactusChance, maxCactusHeight: this.maxCactusHeight },
+            {
+                flowerPatchDistApart: this.flowerPatchDistApart,
+                dandelionChance: this.dandelionChance,
+                poppyChance: this.poppyChance,
+                forgetMeNotChance: this.forgetMeNotChance,
+                redTulipChance: this.redTulipChance,
+                pinkTulipChance: this.pinkTulipChance,
+                whiteTulipChance: this.whiteTulipChance,
+                orangeTulipChance: this.orangeTulipChance,
+                daisyChance: this.daisyChance,
+            }
+        )
     }
 
-    // x, z are the co-ordinates of the column. GlobalY is bottom y coordinate of chunk
+    // globalX, globalY are the global co-ordinates of the column. GlobalY is bottom y coordinate of chunk
     getChunkColumn({array, globalX, globalY, globalZ, localX, localZ, heightMapVals, nearbyTrunks, caveInfos}) {
+        const columnOres = this.oreGenerator.getOreBlocksNearColumn(globalX, globalZ)
         for (let j = 0; j < this.chunkSize; ++j) {
-            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightMapVals, nearbyTrunks, caveInfos)
+            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightMapVals, nearbyTrunks, caveInfos, columnOres)
             array.set(localX, j, localZ, blockId)
         }
     }
@@ -97,7 +115,7 @@ export class TestBiome {
         return `${x}|${z}`
     }
 
-    _getBlock(x, y, z, heightMapVals, treeTrunks, caveInfos) {
+    _getBlock(x, y, z, heightMapVals, treeTrunks, caveInfos, columnOres) {
         // // console.log("Calling is cave")
         // if (this._isCave(x, y, z, caveInfos)) {
         //     // console.log("Is cave! yay")
@@ -108,9 +126,9 @@ export class TestBiome {
         //     return 0
         // }
 
-        // if (z > 0) {
-        //     return 0
-        // }
+        if (z > 10) {
+            return 0
+        }
 
         if (y < constants.bedrockLevel) {
             return 0
@@ -148,6 +166,11 @@ export class TestBiome {
         }
 
         if (y < height-4) {
+            const oreBlock = this.oreGenerator.getOreBlock(x, y, z, columnOres)
+            if (oreBlock) {
+                return oreBlock
+            }
+
             return this.blockMetadata["Stone"].id
         }
 
@@ -193,6 +216,7 @@ export class TestBiome {
 
 export class DesertBiome extends TestBiome {
     grassChance = 0
+    cactusChance = 0.0001
     flowerPatchDistApart = null
 
     constructor(chunkSize, blockMetadata, worldGenerator, seed) {
@@ -219,7 +243,7 @@ export class DesertBiome extends TestBiome {
 
 export class PlainsBiome extends TestBiome {
     grassChance = 0.18
-    
+
     flowerPatchDistApart = 20
     forgetMeNotChance = 1
     whiteTulipChance = 1

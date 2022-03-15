@@ -26,8 +26,6 @@ export class TreeGenerator {
 		this.seed = seed
 		this.blockMetadata = blockMetadata
 
-		console.log(treeDensityFunc)
-
 		this.treePointGen = new PointsGenerator(
 			// We actually use densityFunc to find the minDist for trees.
 			// Use this to ensure we don't end up with absolutely massive cells.
