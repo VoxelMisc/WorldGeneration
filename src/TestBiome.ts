@@ -199,7 +199,7 @@ export class TestBiome {
     _isCave(x, y, z, caveInfos) {
         const infos = caveInfos[xzId(x, z)]
         for (const {low, high} of infos) {
-            if (y > low && y < high) {
+            if (y >= low && y <= high) {
                 return true
             }
         }

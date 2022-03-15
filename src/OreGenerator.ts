@@ -46,7 +46,7 @@ export class OreGenerator {
 				minY: -60,
 				maxY: 15,
 				// spawnChance: 1,
-				spawnChance: 0.7,
+				spawnChance: 0.5,
 				pointGenerator: null,
 			},
 			"Coal Ore": {
