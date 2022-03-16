@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "outDir": "lib",
-    "module": "esnext",
+    "module": "CommonJS",
     "lib": [
       "ESNext",
       "dom",
@@ -10,7 +10,7 @@
     "declaration": true,
     "noImplicitAny": false,
     "experimentalDecorators": true,
-    "sourceMap": true,
+    "sourceMap": false,
     "esModuleInterop": true,
     "allowJs": true,
     "moduleResolution": "node",

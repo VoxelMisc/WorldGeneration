@@ -7,7 +7,6 @@ import {TreeGenerator} from './TreeGenerator'
 import {FloraGenerator} from './FloraGenerator'
 import { WorldGenerator } from './index'
 import {OreGenerator} from './OreGenerator'
-const gen = require('random-seed')
 
 
 export class TestBiome {
@@ -124,10 +123,6 @@ export class TestBiome {
         //     // console.log("Not cave")
         //     return 0
         // }
-
-        if (z > 10) {
-            return 0
-        }
 
         if (y < constants.bedrockLevel) {
             return 0

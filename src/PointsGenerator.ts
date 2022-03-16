@@ -1,17 +1,17 @@
-import { KdTreeSet } from "@thi.ng/geom-accel";
-import { samplePoisson } from "@thi.ng/poisson";
 import { makeProfileHook } from './profileHook'
-import {xzDist, xzDistNoArr} from './util'
-import {ArrayLikeIterable, Fn} from '@thi.ng/api'
+import {xzDistNoArr} from './util'
+import PoissonDiskSampling from 'poisson-disk-sampling'
+
 import Rand, {PRNG} from 'rand-seed'
-const gen = require('random-seed')
 
 const profilePoints = false
 const profiler = profilePoints ? makeProfileHook(110000, 'isPoint') : () => {}
 
+export type VariableDensitySettings = {func: Function, min: number, max: number}
+
 export class PointsGenerator {
 	minDist: number
-	densityFunc: Fn<ArrayLikeIterable<number>, number>
+	variableDensitySettings: VariableDensitySettings
 
 	gridSize: number
 
@@ -33,13 +33,13 @@ export class PointsGenerator {
         useKthClosestPoint: boolean,
         seed: string,
         pointsPerCell: number,
-        densityFunc=null,
+        variableDensitySettings: VariableDensitySettings=null,
 		useJitteredGrid=false // When true, many of the other above settings are ignored
 	) {
 		console.assert(Number.isInteger(minDistanceBetweenPoints))
 
 		this.minDist = minDistanceBetweenPoints
-		this.densityFunc = densityFunc
+		this.variableDensitySettings = variableDensitySettings
 		// this.gridSize = minDistanceBetweenPoints * 10
 
 		this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
@@ -238,10 +238,6 @@ export class PointsGenerator {
 			surroundingPoints: null,
 		}
 		this._currCells.unshift(cell)
-		if (this.minDist === 50) {
-			// console.log(cell.points)
-		}
-		// console.log("Generating for", cellX, cellZ, "minDist", this.minDist)
 
 		if (this._currCells.length > this.maxStoredCells) {
 			this._currCells.pop()
@@ -251,24 +247,51 @@ export class PointsGenerator {
 	}
 
 	generateRandomPointsForCell(cellX, cellZ) {
-		const cellRand = gen(`${cellX}|${cellZ}|${this.seed}`)
-
 		const startX = cellX*this.gridSize
 		const startZ = cellZ*this.gridSize
 
 		let pts
 		if (!this.useJitteredGrid) {
-			const index = new KdTreeSet(2);
-			pts = samplePoisson({
-				index,
-				points: () => {
-					return [startX+cellRand(Math.floor(this.gridSize-this.minDist)-1), startZ+cellRand(Math.floor(this.gridSize-this.minDist)-1)]
-				},
-				density: this.densityFunc ? this.densityFunc : this.minDist,
-				max: 10000,
-				quality: 40,
-				// density: (p) => fit01(Math.pow(dist(p, [250, 250]) / 250, 2), 2, 10),
-			});
+			const rand = new Rand(`${cellX}${cellZ}${this.seed}pts`, PRNG.mulberry32);
+			const randFunc = () => {
+				return rand.next()
+			}
+
+			let diskGenerator
+			const shapeSize = this.gridSize-this.minDist
+			if (this.variableDensitySettings === null) {
+				diskGenerator = new PoissonDiskSampling({
+					shape: [shapeSize, shapeSize],
+					minDistance: this.minDist,
+					maxDistance: this.minDist,
+					tries: 40,
+				}, randFunc)
+			}
+			else {
+				const minDistance = this.variableDensitySettings.min
+				const maxDistance = this.variableDensitySettings.max
+				const distDiff = maxDistance-minDistance
+
+				const realDistFunc = this.variableDensitySettings.func
+
+				// Need a number between 0-1 where 0 is minDist and 1 is maxDist
+				const distFunc = (pt) => {
+					const realDist = realDistFunc([pt[0]+startX, pt[1]+startZ])
+					return (realDist-minDistance)/distDiff
+				}
+				diskGenerator = new PoissonDiskSampling({
+					shape: [shapeSize, shapeSize],
+					minDistance: minDistance,
+					maxDistance: maxDistance,
+					tries: 40,
+					distanceFunction: distFunc
+				}, randFunc)
+			}
+			pts = diskGenerator.fill();
+			for (const pt of pts) {
+				pt[0] = Math.floor(startX+pt[0])
+				pt[1] = Math.floor(startZ+pt[1])
+			}
 		}
 		else {
 			const jitterRandGen = new Rand(`${cellX}${cellZ}${this.seed}jitter`, PRNG.mulberry32);

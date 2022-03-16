@@ -1,7 +1,7 @@
 import {getxzFromId, xzDist, xzId} from './util'
 import Rand, {PRNG} from 'rand-seed'
 import {TestBiome} from './TestBiome'
-import {PointsGenerator} from './PointsGenerator'
+import {PointsGenerator, VariableDensitySettings} from './PointsGenerator'
 import {closestBiomesForChunk} from './types'
 
 export class TreeGenerator {
@@ -19,7 +19,7 @@ export class TreeGenerator {
 	minTreeHeight = 4
 	maxTreeHeight = 7
 
-	constructor(treeRadius, baseBiome, chunkSize, seed, treeDensityFunc, blockMetadata) {
+	constructor(treeRadius, baseBiome, chunkSize, seed, treeVariableDensitySettings: VariableDensitySettings, blockMetadata) {
 		this.treeRadius = treeRadius
 		this.baseBiome = baseBiome
 		this.chunkSize = chunkSize
@@ -35,7 +35,7 @@ export class TreeGenerator {
 			false,
 			seed,
 			300,
-			treeDensityFunc
+			treeVariableDensitySettings
 		)
 	}
 

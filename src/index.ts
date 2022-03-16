@@ -4,11 +4,12 @@ import { PointsGenerator } from './PointsGenerator'
 import {makeProfileHook} from './profileHook'
 import {DesertBiome, ForestBiome, OceanBiome, PlainsBiome, RollingHillsBiome, TestBiome} from './TestBiome'
 import {SimplexCustomOctaveHelper, SimplexOctaveHelper, TxzId, xzDist, xzId} from './util'
-// const gen = require('random-seed')
 import Rand, {PRNG} from 'rand-seed'
 import {CavesGenerator} from './CavesGenerator'
 import {TreeGenerator} from './TreeGenerator'
 import {closestBiomesForChunk} from './types'
+import cruncher from "voxel-crunch"
+const MD5 = require('md5.js')
 
 const profileGetChunk = false
 const profiler = profileGetChunk ? makeProfileHook(50, 'getChunk') : () => {}
@@ -39,17 +40,6 @@ class WorldGenerator {
 			blockMetadata,
 			this,
 			seed,
-		)
-
-		this.treeGenerator = new TreeGenerator(
-			this.treeRadius,
-			this.baseBiome,
-			chunkSize,
-			seed,
-			(pt) => {
-				return this._getBiome(pt[0], pt[1]).treeMinDist || 10000
-			},
-			blockMetadata
 		)
 
 		const desertBiome = new DesertBiome(
@@ -91,12 +81,38 @@ class WorldGenerator {
 		]
 
 		this.biomesTotalFrequency = 0
+
+		let treeMinDist = 100000
+		let treeMaxDist = 0
 		for (const biomeInfo of this.biomes) {
 			this.biomesTotalFrequency += biomeInfo.frequency
 			biomeInfo.cumuFreq = this.biomesTotalFrequency
 
+			if (biomeInfo.biome.treeMinDist) {
+				treeMinDist = Math.min(treeMinDist, biomeInfo.biome.treeMinDist)
+				treeMaxDist = Math.max(treeMaxDist, biomeInfo.biome.treeMinDist)
+			}
+
 			biomeInfo.biome.init()
 		}
+
+		this.treeGenerator = new TreeGenerator(
+			this.treeRadius,
+			this.baseBiome,
+			chunkSize,
+			seed,
+			{
+				func: (pt) => {
+					// Default to treeMaxDist so we always return a number
+					// We don't need to worry about using treeMaxDist when it's null as we ignore trees that say they're
+					// in a biome without trees
+					return this._getBiome(pt[0], pt[1]).treeMinDist || treeMaxDist
+				},
+				min: treeMinDist,
+				max: treeMaxDist,
+			},
+			blockMetadata
+		)
 
 		this.chunkSize = chunkSize
 
@@ -120,6 +136,13 @@ class WorldGenerator {
 	getChunk(array, x, y, z) {
 		try {
 			this._getChunk(array, x, y, z)
+
+			const rleArr = cruncher.encode(array.data)
+			const rleStr = String.fromCharCode.apply(null, rleArr);
+
+			return {
+				hash: new MD5().update(rleStr).digest('hex'),
+			}
 		}
 		catch (e) {
 			console.log(e.stack)

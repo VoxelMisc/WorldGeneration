@@ -10,7 +10,6 @@ import {
 import {ChunkBasedPointGenerator} from './ChunkBasedPointGenerator'
 import {PointsGenerator} from './PointsGenerator'
 import Rand, {PRNG} from 'rand-seed'
-import {dist, mag} from '@thi.ng/vectors'
 
 export class CavesGenerator {
 	spaghettCaves: {count: number,
