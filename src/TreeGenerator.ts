@@ -30,12 +30,14 @@ export class TreeGenerator {
 			// We actually use densityFunc to find the minDist for trees.
 			// Use this to ensure we don't end up with absolutely massive cells.
 			// BUT this does mean the max minDist can't be massively larger than the min dist
-			this.treeMinDistApart,
+			6,
 			true,
 			false,
 			seed,
 			300,
-			treeVariableDensitySettings
+			treeVariableDensitySettings,
+			false,
+			2
 		)
 	}
 

@@ -27,6 +27,8 @@ export class PointsGenerator {
 
 	useJitteredGrid: boolean
 
+	customCellGap: number
+
 	constructor(
 		minDistanceBetweenPoints: number,
         useIsPoint: boolean,
@@ -34,12 +36,14 @@ export class PointsGenerator {
         seed: string,
         pointsPerCell: number,
         variableDensitySettings: VariableDensitySettings=null,
-		useJitteredGrid=false // When true, many of the other above settings are ignored
+		useJitteredGrid=false, // When true, many of the other above settings are ignored
+		customCellGap=undefined,
 	) {
 		console.assert(Number.isInteger(minDistanceBetweenPoints))
 
 		this.minDist = minDistanceBetweenPoints
 		this.variableDensitySettings = variableDensitySettings
+		this.customCellGap = customCellGap
 		// this.gridSize = minDistanceBetweenPoints * 10
 
 		this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
@@ -258,7 +262,8 @@ export class PointsGenerator {
 			}
 
 			let diskGenerator
-			const shapeSize = this.gridSize-this.minDist
+			const shapeSize = this.gridSize-(this.customCellGap || this.minDist)
+
 			if (this.variableDensitySettings === null) {
 				diskGenerator = new PoissonDiskSampling({
 					shape: [shapeSize, shapeSize],
@@ -287,11 +292,13 @@ export class PointsGenerator {
 					distanceFunction: distFunc
 				}, randFunc)
 			}
-			pts = diskGenerator.fill();
-			for (const pt of pts) {
-				pt[0] = Math.floor(startX+pt[0])
-				pt[1] = Math.floor(startZ+pt[1])
-			}
+
+			const genPts = diskGenerator.fill();
+
+			// Map to a new list to make type smi instead of float
+			pts = genPts.map((pt) => {
+				return [Math.floor(startX+pt[0]), Math.floor(startZ+pt[1])]
+			})
 		}
 		else {
 			const jitterRandGen = new Rand(`${cellX}${cellZ}${this.seed}jitter`, PRNG.mulberry32);
@@ -300,13 +307,11 @@ export class PointsGenerator {
 
 			const endX = startX+this.gridSize
 			const endZ = startZ+this.gridSize
-			// let i = 0
 			for (let x = startX; x < endX; x += this.minDist) {
 				for (let z = startZ; z < endZ; z += this.minDist) {
 					const xPt = x+Math.floor(jitterRandGen.next()*this.minDist)
 					const zPt = z+Math.floor(jitterRandGen.next()*this.minDist)
 					pts.push([xPt, zPt])
-					// i++
 				}
 			}
 		}
