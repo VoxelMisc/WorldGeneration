@@ -1,6 +1,7 @@
 import { makeProfileHook } from './profileHook'
 import {xzDistNoArr} from './util'
 import PoissonDiskSampling from 'poisson-disk-sampling'
+import { FancyPoissonDiscGenerator } from './FancyPoissonDiscGenerator'
 
 import Rand, {PRNG} from 'rand-seed'
 
@@ -26,6 +27,8 @@ export class PointsGenerator {
 	seed: string
 
 	useJitteredGrid: boolean
+
+	fancyPoissonDiscGenerator: FancyPoissonDiscGenerator
 
 	constructor(
 		minDistanceBetweenPoints: number,
@@ -56,6 +59,8 @@ export class PointsGenerator {
 
 		this.useIsPoint = useIsPoint
 		this.useKthClosestPoint = useKthClosestPoint
+
+		this.fancyPoissonDiscGenerator = new FancyPoissonDiscGenerator(seed, this.gridSize, variableDensitySettings)
 
 		this.seed = seed
 
@@ -259,6 +264,7 @@ export class PointsGenerator {
 
 			let diskGenerator
 			const shapeSize = this.gridSize-this.minDist
+
 			if (this.variableDensitySettings === null) {
 				diskGenerator = new PoissonDiskSampling({
 					shape: [shapeSize, shapeSize],
@@ -266,31 +272,111 @@ export class PointsGenerator {
 					maxDistance: this.minDist,
 					tries: 40,
 				}, randFunc)
+
+				const genPts = diskGenerator.fill();
+				pts = genPts.map((pt) => {
+					return [Math.floor(startX+pt[0]), Math.floor(startZ+pt[1])]
+				})
 			}
 			else {
-				const minDistance = this.variableDensitySettings.min
-				const maxDistance = this.variableDensitySettings.max
-				const distDiff = maxDistance-minDistance
 
-				const realDistFunc = this.variableDensitySettings.func
+				const xEven = cellX % 2 === 0
+				const zEven = cellZ % 2 === 0
+				console.log(cellX, cellZ)
 
-				// Need a number between 0-1 where 0 is minDist and 1 is maxDist
-				const distFunc = (pt) => {
-					const realDist = realDistFunc([pt[0]+startX, pt[1]+startZ])
-					return (realDist-minDistance)/distDiff
+				if (xEven && zEven) {
+					pts = this.fancyPoissonDiscGenerator.generateUnrestrictedCell(cellX, cellZ)
 				}
-				diskGenerator = new PoissonDiskSampling({
-					shape: [shapeSize, shapeSize],
-					minDistance: minDistance,
-					maxDistance: maxDistance,
-					tries: 40,
-					distanceFunction: distFunc
-				}, randFunc)
-			}
-			pts = diskGenerator.fill();
-			for (const pt of pts) {
-				pt[0] = Math.floor(startX+pt[0])
-				pt[1] = Math.floor(startZ+pt[1])
+				else if (xEven) {
+					// Need the above and below cells
+					const above = this.getCell(cellX, cellZ+1)
+					const below = this.getCell(cellX, cellZ-1)
+
+					pts = this.fancyPoissonDiscGenerator.generateRestrictedCell(
+						cellX,
+						cellZ,
+						[
+							above.points,
+							below.points,
+						]
+					)
+				}
+				else if (zEven) {
+					// Need all surrounding cells apart from above/below (because we care about diagonals)
+					const left = this.getCell(cellX-1, cellZ)
+					const leftUp = this.getCell(cellX-1, cellZ+1)
+					const leftDown = this.getCell(cellX-1, cellZ-1)
+
+					const right = this.getCell(cellX+1, cellZ)
+					const rightUp = this.getCell(cellX+1, cellZ+1)
+					const rightDown = this.getCell(cellX+1, cellZ-1)
+
+					pts = this.fancyPoissonDiscGenerator.generateRestrictedCell(
+						cellX,
+						cellZ,
+						[
+							left.points,
+							leftUp.points,
+							leftDown.points,
+							right.points,
+							rightUp.points,
+							rightDown.points,
+						]
+					)
+				}
+				else {
+					// Need all surrounding cells
+					const left = this.getCell(cellX-1, cellZ)
+					const leftUp = this.getCell(cellX-1, cellZ+1)
+					const leftDown = this.getCell(cellX-1, cellZ-1)
+
+					const right = this.getCell(cellX+1, cellZ)
+					const rightUp = this.getCell(cellX+1, cellZ+1)
+					const rightDown = this.getCell(cellX+1, cellZ-1)
+
+					const up = this.getCell(cellX, cellZ+1)
+					const down = this.getCell(cellX, cellZ-1)
+
+					pts = this.fancyPoissonDiscGenerator.generateRestrictedCell(
+						cellX,
+						cellZ,
+						[
+							left.points,
+							leftUp.points,
+							leftDown.points,
+							right.points,
+							rightUp.points,
+							rightDown.points,
+							up.points,
+							down.points,
+						]
+					)
+				}
+
+				// const minDistance = this.variableDensitySettings.min
+				// const maxDistance = this.variableDensitySettings.max
+				// const distDiff = maxDistance-minDistance
+				//
+				// const realDistFunc = this.variableDensitySettings.func
+				//
+				// // Need a number between 0-1 where 0 is minDist and 1 is maxDist
+				// const distFunc = (pt) => {
+				// 	const realDist = realDistFunc([pt[0]+startX, pt[1]+startZ])
+				// 	return 100000
+				// 	return (realDist-minDistance)/distDiff
+				// }
+				// diskGenerator = new PoissonDiskSampling({
+				// 	shape: [shapeSize, shapeSize],
+				// 	minDistance: minDistance,
+				// 	maxDistance: maxDistance,
+				// 	tries: 40,
+				// 	distanceFunction: distFunc
+				// }, randFunc)
+				//
+				// const genPts = diskGenerator.fill();
+				// pts = genPts.map((pt) => {
+				// 	return [Math.floor(startX+pt[0]), Math.floor(startZ+pt[1])]
+				// })
 			}
 		}
 		else {
@@ -323,7 +409,7 @@ export class PointsGenerator {
 
 		return {
 			pointsSet,
-			points: this.useKthClosestPoint ? pts : null,
+			points: this.useKthClosestPoint || this.variableDensitySettings ? pts : null,
 		}
 
 		// return pts
