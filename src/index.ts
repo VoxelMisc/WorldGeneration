@@ -9,6 +9,7 @@ import {CavesGenerator} from './CavesGenerator'
 import {TreeGenerator} from './TreeGenerator'
 import {closestBiomesForChunk} from './types'
 import cruncher from "voxel-crunch"
+import {CACavesGenerator} from './CACavesGenerator'
 const MD5 = require('md5.js')
 
 const profileGetChunk = false
@@ -31,6 +32,8 @@ class WorldGenerator {
 	biomesTotalFrequency: number
 
 	cavesGenerator: CavesGenerator
+
+	caCavesGen: CACavesGenerator
 
 	baseBiome: TestBiome
 
@@ -130,6 +133,8 @@ class WorldGenerator {
 		], `${seed}BiomeOffsetSimplex`)
 
 		this.cavesGenerator = new CavesGenerator(seed, chunkSize, this.neededOutsideChunkHeightRadius)
+
+		this.caCavesGen = new CACavesGenerator(seed, chunkSize)
 	}
 
 	// x, y, z are the co-ordinates of the bottom left block in the chunk
@@ -183,6 +188,8 @@ class WorldGenerator {
 				biome.getChunkColumn(biomeArgs)
 			}
 		}
+
+		this.caCavesGen.carveCAIntoChunk(array, x, y, z)
 	}
 
 	// x and z are coords of bottom left block in chunk

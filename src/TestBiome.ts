@@ -124,6 +124,10 @@ export class TestBiome {
         //     return 0
         // }
 
+        if (z < -10) {
+            return 0
+        }
+
         if (y < constants.bedrockLevel) {
             return 0
         }
