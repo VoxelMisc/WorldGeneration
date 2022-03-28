@@ -139,7 +139,7 @@ export class TestBiome {
         // if (this._isCave(x, y, z, caveInfos)) {
         //     return this.blockMetadata["Water"].id
 
-            // return 0
+            return 0
         }
         else {
             // if (y === height-1) {

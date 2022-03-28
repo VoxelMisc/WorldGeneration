@@ -49,12 +49,12 @@ export class WaterBodyGenerator {
 	cellCenterMaxOffset: number
 
 	maxRiverSettings = {
-		width: 20,
+		width: 23,
 		atFlux: 1000,
 	}
 
 	lakeSettings = {
-		maxRadius: 55,
+		maxRadius: 60,
 		maxRadiusAtFlux: 2000,
 
 		noLakeFluxCutoff: 50,

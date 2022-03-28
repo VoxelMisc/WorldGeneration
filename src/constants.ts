@@ -6,3 +6,4 @@ export default {
 }
 
 export const NO_WATER_LEVEL = -10000
+export const NO_CAVES_RESTRICTION_FROM_WATER = 10000

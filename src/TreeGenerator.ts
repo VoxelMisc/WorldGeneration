@@ -74,8 +74,8 @@ export class TreeGenerator {
 	}
 
 	_addTreeToTreesNearbyBlocks(trees, x, z, tree, leftmostChunkX, bottommostChunkZ) {
-		for (let i = x-this.treeRadius; i < x+this.treeRadius+1; i++) {
-			for (let k = z-this.treeRadius; k < z+this.treeRadius+1; k++) {
+		for (let i = x-this.treeRadius; i <= x+this.treeRadius; i++) {
+			for (let k = z-this.treeRadius; k <= z+this.treeRadius; k++) {
 				if (i >= leftmostChunkX && i < leftmostChunkX+32 && k >= bottommostChunkZ && k < bottommostChunkZ+32) {
 					const xzID = xzId(i, k)
 					const treesForBlock = trees[xzID] || []

@@ -10,6 +10,8 @@ import {
 import {ChunkBasedPointGenerator} from './ChunkBasedPointGenerator'
 import {PointsGenerator} from './PointsGenerator'
 import Rand, {PRNG} from 'rand-seed'
+import {CaveInfo, CaveInfos, HeightmapVals} from './types'
+import {NO_CAVES_RESTRICTION_FROM_WATER} from './constants'
 
 export class CavesGenerator {
 	spaghettCaves: {count: number,
@@ -359,20 +361,22 @@ export class CavesGenerator {
 	}
 
 	// x and z are bottom left corner blocks in chunk
-	getCaveInfoForChunk(x, z, heightmapVals) {
+	getCaveInfoForChunk(x, z, heightmapVals: HeightmapVals) {
 		const caveInfos = {}
 		for (let i = x-this.lookOutsideChunkDist; i < x+this.chunkSize+this.lookOutsideChunkDist; ++i) {
 			for (let k = z-this.lookOutsideChunkDist; k < z+this.chunkSize+this.lookOutsideChunkDist; ++k) {
 				const caveInfoList = []
 				caveInfos[xzId(i, k)] = caveInfoList
 
-				this._addSpaghettCavesForColumn(i, k, caveInfoList, heightmapVals)
+				this._addSpaghettCavesForColumn(i, k, caveInfoList, heightmapVals.groundHeights)
 			}
 		}
 
-		this._addPitCaves(x, z, caveInfos, heightmapVals)
-		this._addSphereCaves(x, z, caveInfos, heightmapVals)
-		this._addRavineCaves(x, z, caveInfos, heightmapVals)
+		this._addPitCaves(x, z, caveInfos, heightmapVals.groundHeights)
+		this._addSphereCaves(x, z, caveInfos, heightmapVals.groundHeights)
+		this._addRavineCaves(x, z, caveInfos, heightmapVals.groundHeights)
+
+		this.removeCavesNearWater(x, z, caveInfos, heightmapVals)
 
 		return caveInfos
 	}
@@ -381,9 +385,9 @@ export class CavesGenerator {
 	 * @param x block x of column
 	 * @param z block z of column
 	 * @param caveInfoList
-	 * @param heightmapVals
+	 * @param groundHeights
 	 */
-	_addSpaghettCavesForColumn(x, z, caveInfoList, heightmapVals) {
+	_addSpaghettCavesForColumn(x, z, caveInfoList: CaveInfo, groundHeights) {
 		for (const caveType of this.spaghettCaves) {
 			for (let caveI = 0; caveI < caveType.count; caveI++) {
 				let perturbX = caveType.thresholdPerturbNoises[caveI].getOctaves(x, z)
@@ -428,7 +432,7 @@ export class CavesGenerator {
 				let top = Math.floor(caveYFromNoise+caveHeight + caveType.caveOffset)
 
 				// Don't want hovering grass, so if we are one block away from the surface increase top by one
-				if (top+1 === heightmapVals[xzId(x, z)]) {
+				if (top+1 === groundHeights[xzId(x, z)]) {
 					top++
 				}
 
@@ -446,9 +450,9 @@ export class CavesGenerator {
 	 * @param x
 	 * @param z
 	 * @param caveInfos
-	 * @param heightmapVals
+	 * @param groundHeights
 	 */
-	_addPitCaves(x, z, caveInfos, heightmapVals) {
+	_addPitCaves(x, z, caveInfos, groundHeights) {
 		for (let pitCaveI = 0; pitCaveI < this.pitCaves.generators.length; pitCaveI++) {
 			const gen = this.pitCaves.generators[pitCaveI]
 			const distPerturber = this.pitCaves.distPerturbNoises[pitCaveI]
@@ -511,7 +515,7 @@ export class CavesGenerator {
 						top = Math.floor(top)
 
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === heightmapVals[xzID]) {
+						if (top+1 === groundHeights[xzID]) {
 							top++
 						}
 
@@ -529,9 +533,9 @@ export class CavesGenerator {
 	 * @param x
 	 * @param z
 	 * @param caveInfos
-	 * @param heightmapVals
+	 * @param groundHeights
 	 */
-	_addRavineCaves(x, z, caveInfos, heightmapVals) {
+	_addRavineCaves(x, z, caveInfos, groundHeights) {
 		for (let ravineCaveI = 0; ravineCaveI < this.ravineCaves.generators.length; ravineCaveI++) {
 			const gen = this.ravineCaves.generators[ravineCaveI]
 			const distPerturber = this.ravineCaves.distPerturbNoises[ravineCaveI]
@@ -621,7 +625,7 @@ export class CavesGenerator {
 
 						const xzID = xzId(i, k)
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === heightmapVals[xzID]) {
+						if (top+1 === groundHeights[xzID]) {
 							top++
 						}
 
@@ -639,9 +643,9 @@ export class CavesGenerator {
 	 * @param x
 	 * @param z
 	 * @param caveInfos
-	 * @param heightmapVals
+	 * @param groundHeights
 	 */
-	_addSphereCaves(x, z, caveInfos, heightmapVals) {
+	_addSphereCaves(x, z, caveInfos, groundHeights) {
 		for (let sphereCaveI = 0; sphereCaveI < this.sphereCaves.generators.length; sphereCaveI++) {
 			const gen = this.sphereCaves.generators[sphereCaveI]
 			const distPerturber = this.sphereCaves.distPerturbNoises[sphereCaveI]
@@ -687,11 +691,34 @@ export class CavesGenerator {
 						let top = Math.floor(sphereCenterY+y)
 
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === heightmapVals[xzID]) {
+						if (top+1 === groundHeights[xzID]) {
 							top++
 						}
 
 						caveInfoList.push({low: bot, high: top})
+					}
+				}
+			}
+		}
+	}
+
+	private removeCavesNearWater(x, z, caveInfos: CaveInfos, heightmapVals: HeightmapVals) {
+		for (let i = x-this.lookOutsideChunkDist; i < x+this.chunkSize+this.lookOutsideChunkDist; ++i) {
+			for (let k = z-this.lookOutsideChunkDist; k < z+this.chunkSize + this.lookOutsideChunkDist; ++k) {
+				let ikID = xzId(i, k)
+				const cavesAllowedBelowY = heightmapVals.cavesAllowedBelowY[ikID]
+				if (cavesAllowedBelowY !== NO_CAVES_RESTRICTION_FROM_WATER) {
+					const caveInfo = caveInfos[ikID]
+					for (let i = caveInfo.length-1; i >= 0; i--) {
+						const cave = caveInfo[i]
+						if (cave.high > cavesAllowedBelowY) {
+							if (cave.low > cavesAllowedBelowY) {
+								caveInfo.splice(i, 1)
+							}
+							else {
+								cave.high = cavesAllowedBelowY
+							}
+						}
 					}
 				}
 			}

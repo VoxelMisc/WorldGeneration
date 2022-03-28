@@ -10,7 +10,7 @@ import {TreeGenerator} from './TreeGenerator'
 import {ClosestBiomes, ClosestBiomesForChunk, HeightmapVals} from './types'
 import cruncher from "voxel-crunch"
 import {WaterBodyGenerator} from './WaterBodyGenerator'
-import {NO_WATER_LEVEL} from './constants'
+import {NO_CAVES_RESTRICTION_FROM_WATER, NO_WATER_LEVEL} from './constants'
 const MD5 = require('md5.js')
 
 const profileGetChunk = false
@@ -193,9 +193,9 @@ class WorldGenerator {
 
 	_getChunk(array, x, y, z) {
 		const allClosestBiomePoints = this._getClosestBiomesForChunk(x, z)
-		const heightmapVals: HeightmapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
+		const heightmapVals: HeightmapVals = this.getHeightMapVals(x, z, allClosestBiomePoints)
 
-		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z, heightmapVals.groundHeights)
+		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z, heightmapVals)
 		const treeTrunksAroundPoints = this.treeGenerator._getTreeTrunksForBlocksInChunk(x, z, heightmapVals, allClosestBiomePoints, caveInfos)
 
 		// Generate ores based on the biome in the center of the chunk
@@ -289,10 +289,11 @@ class WorldGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getHeightMapVals(x, z, allClosestBiomesForChunk: ClosestBiomesForChunk): HeightmapVals {
-		const heightmapVals = {
+	getHeightMapVals(x, z, allClosestBiomesForChunk: ClosestBiomesForChunk): HeightmapVals {
+		const heightmapVals: HeightmapVals = {
 			groundHeights: {},
 			waterHeights: {},
+			cavesAllowedBelowY: {},
 		}
 
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
@@ -302,22 +303,24 @@ class WorldGenerator {
 
 				const perturbX = Math.floor(this.heightmapPerturb.getOctaves(i, k))
 				const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(i+200, k+778))
-				const {groundHeight, waterHeight} = this.getWithWaterHeightmapVal(i+perturbX, k+perturbZ, closestBiomePts)
+				const {groundHeight, waterHeight, cavesAllowedBelowY} = this.getWithWaterHeightmapVal(i+perturbX, k+perturbZ, closestBiomePts)
 
 				heightmapVals.groundHeights[nonPerturbedIKId] = groundHeight
 				heightmapVals.waterHeights[nonPerturbedIKId] = waterHeight
+				heightmapVals.cavesAllowedBelowY[nonPerturbedIKId] = cavesAllowedBelowY
 			}
 		}
 
 		return heightmapVals
 	}
 
-	getWithWaterHeightmapVal(x, z, closestBiomePts: ClosestBiomes): {groundHeight: number, waterHeight: number} {
+	getWithWaterHeightmapVal(x, z, closestBiomePts: ClosestBiomes): {groundHeight: number, waterHeight: number, cavesAllowedBelowY: number} {
 		const noWaterHeightmapVal = this.getNoWaterHeightmapVal(x, z, closestBiomePts)
 		const {distFromWater, waterRadius, waterHeight: heightOfWater, waterbedHeight, isLake} = this.waterBodyGenerator.getInfoNeededForWaterGen(x, z)
 
 		let height = 0
 		let waterHeight = NO_WATER_LEVEL
+		let cavesAllowedBelowY = NO_CAVES_RESTRICTION_FROM_WATER
 
 		const waterCutoff = waterRadius + this.needOutsideWaterDist
 
@@ -355,6 +358,9 @@ class WorldGenerator {
 
 				height = bankTop + Math.ceil((noWaterHeightmapVal-bankTop) * distFracToBankTop)
 			}
+
+			// Don't allow caves too nearby as otherwise they look odd near/intersecting with water bodies
+			cavesAllowedBelowY = height - 15
 		}
 		else {
 			height = noWaterHeightmapVal
@@ -363,6 +369,7 @@ class WorldGenerator {
 		return {
 			groundHeight: height,
 			waterHeight,
+			cavesAllowedBelowY,
 		}
 	}
 
@@ -373,8 +380,8 @@ class WorldGenerator {
 		// const closestBiome = closestBiomePts[0].biome
 		// heights[xzId(x, z)] = closestBiome.getHeightmapVal(x, z)
 
-		const perturbX = Math.floor(this.heightmapPerturb.getOctaves(x, z))
-		const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(x+200, z+778))
+		// const perturbX = Math.floor(this.heightmapPerturb.getOctaves(x, z))
+		// const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(x+200, z+778))
 
 		// const useX = x+perturbX
 		// const useZ = z+perturbZ
