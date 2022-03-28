@@ -48,7 +48,7 @@ export function len2d(vec) {
  * @param linePt1
  * @param linePt2
  */
-export function distToLineSegmentWithInfo(pt, linePt1, linePt2): {dist, fracAlong} {
+export function distToLineSegmentWithInfo(pt, linePt1, linePt2): {dist, fracAlong, lineSegmentLength} {
 	const len_sq = xzDistSq(linePt1, linePt2)
 
 	const t = (
@@ -80,6 +80,7 @@ export function distToLineSegmentWithInfo(pt, linePt1, linePt2): {dist, fracAlon
 	return {
 		dist: xzDistNoArr(pt, closestX, closestZ),
 		fracAlong,
+		lineSegmentLength: Math.sqrt(len_sq),
 	}
 }
 
@@ -207,6 +208,14 @@ export function dotProduct2d(arr1, arr2) {
 
 export function mod(n, m) {
 	return ((n % m) + m) % m;
+}
+
+export function getCustomNoiseAmplitude(customNoise: SimplexCustomOctaveHelper) {
+	let totalAmplitude = 0
+	for (const {amplitude} of customNoise.customOctaves) {
+		totalAmplitude += amplitude
+	}
+	return totalAmplitude
 }
 
 

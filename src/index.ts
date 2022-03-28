@@ -9,7 +9,7 @@ import {CavesGenerator} from './CavesGenerator'
 import {TreeGenerator} from './TreeGenerator'
 import {ClosestBiomes, ClosestBiomesForChunk, HeightmapVals} from './types'
 import cruncher from "voxel-crunch"
-import {RiverGenerator} from './RiverGenerator'
+import {WaterBodyGenerator} from './WaterBodyGenerator'
 import {NO_WATER_LEVEL} from './constants'
 const MD5 = require('md5.js')
 
@@ -39,8 +39,8 @@ class WorldGenerator {
 
 	baseBiome: TestBiome
 
-	riverGenerator: RiverGenerator
-	needOutsideRiverDist: number = 15
+	waterBodyGenerator: WaterBodyGenerator
+	needOutsideWaterDist: number = 15
 
 	constructor(chunkSize, blockMetadata, seed) {
 		this.baseBiome = new TestBiome(
@@ -170,7 +170,7 @@ class WorldGenerator {
 			heightmapPerturbAmpSum += amplitude
 		}
 
-		this.riverGenerator = new RiverGenerator(this, seed, heightmapPerturbAmpSum, this.needOutsideRiverDist)
+		this.waterBodyGenerator = new WaterBodyGenerator(this, seed, heightmapPerturbAmpSum, this.needOutsideWaterDist)
 	}
 
 	// x, y, z are the co-ordinates of the bottom left block in the chunk
@@ -302,7 +302,7 @@ class WorldGenerator {
 
 				const perturbX = Math.floor(this.heightmapPerturb.getOctaves(i, k))
 				const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(i+200, k+778))
-				const {groundHeight, waterHeight} = this.getWithRiverHeightmapVal(i+perturbX, k+perturbZ, closestBiomePts)
+				const {groundHeight, waterHeight} = this.getWithWaterHeightmapVal(i+perturbX, k+perturbZ, closestBiomePts)
 
 				heightmapVals.groundHeights[nonPerturbedIKId] = groundHeight
 				heightmapVals.waterHeights[nonPerturbedIKId] = waterHeight
@@ -312,41 +312,52 @@ class WorldGenerator {
 		return heightmapVals
 	}
 
-	getWithRiverHeightmapVal(x, z, closestBiomePts: ClosestBiomes): {groundHeight: number, waterHeight: number} {
-		const noRiverHeightmapVal = this.getNoRiverHeightmapVal(x, z, closestBiomePts)
-		const {distFromRiver, riverRadius, riverHeight: heightOfRiver, riverbedHeight} = this.riverGenerator.getInfoNeededForRiverGen(x, z)
+	getWithWaterHeightmapVal(x, z, closestBiomePts: ClosestBiomes): {groundHeight: number, waterHeight: number} {
+		const noWaterHeightmapVal = this.getNoWaterHeightmapVal(x, z, closestBiomePts)
+		const {distFromWater, waterRadius, waterHeight: heightOfWater, waterbedHeight, isLake} = this.waterBodyGenerator.getInfoNeededForWaterGen(x, z)
 
 		let height = 0
 		let waterHeight = NO_WATER_LEVEL
 
-		const riverCutoff = riverRadius + this.needOutsideRiverDist
+		const waterCutoff = waterRadius + this.needOutsideWaterDist
 
-		if (distFromRiver <= riverCutoff) {
-			const bankTopCutoff = riverRadius + 4
-			const bankTop = heightOfRiver+2
+		if (distFromWater <= waterCutoff) {
+			// We're near enough to be either the water itself or the water bank
 
-			// We're near enough to be either the river itself or the river bank
-			if (distFromRiver <= riverRadius) {
-				const distFrac = distFromRiver/(riverRadius)
-				height = riverbedHeight + Math.floor((heightOfRiver-riverbedHeight) * distFrac)
-				waterHeight = heightOfRiver
+			const bankTopCutoff = waterRadius + 4
+			const bankTop = heightOfWater+2
+			if (distFromWater <= waterRadius) {
+				// We're in the water itself
+
+				// Decrease lake banks faster (and with offset)
+				let distFrac = distFromWater/waterRadius
+				if (isLake) {
+					distFrac = distFrac*distFrac*distFrac
+					height = waterbedHeight + Math.floor((heightOfWater-waterbedHeight) * distFrac) - 2
+				}
+				else {
+					distFrac = distFrac*distFrac
+					height = waterbedHeight + Math.floor((heightOfWater-waterbedHeight) * distFrac)
+				}
+
+				waterHeight = heightOfWater
 			}
-			else if (distFromRiver <= bankTopCutoff) {
-				// Smooth down to river edge from bankTop
-				const distFracToRiverEdge = (distFromRiver - riverRadius) / (bankTopCutoff - riverRadius)
+			else if (distFromWater <= bankTopCutoff) {
+				// Smooth down to water edge from bankTop
+				const distFracToWaterEdge = (distFromWater - waterRadius) / (bankTopCutoff - waterRadius)
 
-				height = heightOfRiver + Math.ceil((bankTop-heightOfRiver) * distFracToRiverEdge)
+				height = heightOfWater + Math.ceil((bankTop-heightOfWater) * distFracToWaterEdge)
 				// console.log(height)
 			}
 			else {
 				// Smooth up to the peak of the bank
-				const distFracToBankTop = (distFromRiver - bankTopCutoff) / (riverCutoff - bankTopCutoff)
+				const distFracToBankTop = (distFromWater - bankTopCutoff) / (waterCutoff - bankTopCutoff)
 
-				height = bankTop + Math.ceil((noRiverHeightmapVal-bankTop) * distFracToBankTop)
+				height = bankTop + Math.ceil((noWaterHeightmapVal-bankTop) * distFracToBankTop)
 			}
 		}
 		else {
-			height = noRiverHeightmapVal
+			height = noWaterHeightmapVal
 		}
 
 		return {
@@ -355,7 +366,7 @@ class WorldGenerator {
 		}
 	}
 
-	getNoRiverHeightmapVal(x, z, closestBiomePts: ClosestBiomes) {
+	getNoWaterHeightmapVal(x, z, closestBiomePts: ClosestBiomes) {
 		// no smoothing
 
 		// const closestBiomePts = closestBiomePts[xzId(x, z)]
