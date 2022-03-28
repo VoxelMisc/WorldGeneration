@@ -7,8 +7,10 @@ import {SimplexCustomOctaveHelper, SimplexOctaveHelper, TxzId, xzDist, xzId} fro
 import Rand, {PRNG} from 'rand-seed'
 import {CavesGenerator} from './CavesGenerator'
 import {TreeGenerator} from './TreeGenerator'
-import {closestBiomesForChunk} from './types'
+import {ClosestBiomes, ClosestBiomesForChunk, HeightmapVals} from './types'
 import cruncher from "voxel-crunch"
+import {RiverGenerator} from './RiverGenerator'
+import {NO_WATER_LEVEL} from './constants'
 const MD5 = require('md5.js')
 
 const profileGetChunk = false
@@ -29,10 +31,16 @@ class WorldGenerator {
 	biomes: {biome: TestBiome, frequency: number, cumuFreq: number}[]
 	biomeOffsetSimplex: SimplexCustomOctaveHelper
 	biomesTotalFrequency: number
+	globalHeightmap: SimplexCustomOctaveHelper
+
+	heightmapPerturb: SimplexCustomOctaveHelper
 
 	cavesGenerator: CavesGenerator
 
 	baseBiome: TestBiome
+
+	riverGenerator: RiverGenerator
+	needOutsideRiverDist: number = 15
 
 	constructor(chunkSize, blockMetadata, seed) {
 		this.baseBiome = new TestBiome(
@@ -76,7 +84,7 @@ class WorldGenerator {
 			{ biome: desertBiome, frequency: 10, cumuFreq: null }, // cumuFreq set below
 			{ biome: plainsBiome, frequency: 20, cumuFreq: null },
 			{ biome: forestBiome, frequency: 20, cumuFreq: null },
-			{ biome: oceanBiome, frequency: 20, cumuFreq: null },
+			// { biome: oceanBiome, frequency: 20, cumuFreq: null },
 			{ biome: rollingHillsBiome, frequency: 20, cumuFreq: null },
 		]
 
@@ -129,7 +137,40 @@ class WorldGenerator {
 			},
 		], `${seed}BiomeOffsetSimplex`)
 
+		this.globalHeightmap = new SimplexCustomOctaveHelper([
+			{
+				amplitude: 20,
+				frequency: 1/1300,
+			},
+			{
+				amplitude: 10,
+				frequency: 1/5000,
+			},
+		], `${seed}GlobalHeightmapOffset`)
+
+		this.heightmapPerturb = new SimplexCustomOctaveHelper([
+			{
+				amplitude: 1,
+				frequency: 1/14,
+			},
+			{
+				amplitude: 5,
+				frequency: 1/65,
+			},
+			{
+				amplitude: 20,
+				frequency: 1/250,
+			},
+		], `${seed}HeightmapPerturb`)
+
 		this.cavesGenerator = new CavesGenerator(seed, chunkSize, this.neededOutsideChunkHeightRadius)
+
+		let heightmapPerturbAmpSum = 0
+		for (const {amplitude} of this.heightmapPerturb.customOctaves) {
+			heightmapPerturbAmpSum += amplitude
+		}
+
+		this.riverGenerator = new RiverGenerator(this, seed, heightmapPerturbAmpSum, this.needOutsideRiverDist)
 	}
 
 	// x, y, z are the co-ordinates of the bottom left block in the chunk
@@ -152,10 +193,10 @@ class WorldGenerator {
 
 	_getChunk(array, x, y, z) {
 		const allClosestBiomePoints = this._getClosestBiomesForChunk(x, z)
-		const heightMapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
+		const heightmapVals: HeightmapVals = this._getHeightMapVals(x, z, allClosestBiomePoints)
 
-		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z, heightMapVals)
-		const treeTrunksAroundPoints = this.treeGenerator._getTreeTrunksForBlocksInChunk(x, z, heightMapVals, allClosestBiomePoints, caveInfos)
+		const caveInfos = this.cavesGenerator.getCaveInfoForChunk(x, z, heightmapVals.groundHeights)
+		const treeTrunksAroundPoints = this.treeGenerator._getTreeTrunksForBlocksInChunk(x, z, heightmapVals, allClosestBiomePoints, caveInfos)
 
 		// Generate ores based on the biome in the center of the chunk
 		const centerXZId = xzId(x+this.chunkSize/2, z+this.chunkSize/2)
@@ -175,7 +216,7 @@ class WorldGenerator {
 					globalZ: z+k,
 					localX: i,
 					localZ: k,
-					heightMapVals,
+					heightmapVals,
 					nearbyTrunks: treeTrunksAroundPoints[xzID] || [],
 					caveInfos,
 					chunkOres
@@ -186,29 +227,35 @@ class WorldGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getClosestBiomesForChunk(x, z): closestBiomesForChunk {
+	_getClosestBiomesForChunk(x, z): ClosestBiomesForChunk {
 		const closestBiomes = {}
 		// const zOffsets = this._getBiomeZOffsets(z)
 
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
 			for (let k = z-this.neededOutsideChunkHeightRadius; k < z+this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
-				// Using 2d noise to perturb - looks much better than 1d!!!
-				const xOffset = this._getBiomeXOffset(i, k)
-				// Add random offsets to the z perturbation (to simulate sampling 2 noises instead of the same)
-				const zOffset = this._getBiomeZOffset(i, k)
-
-				const closestPts = this.biomePointGen.getKClosestPointsWithWeights(i+xOffset, k+zOffset, 60)
-				const closestBiomesForXZ = []
-				for (const {weight, pt} of closestPts) {
-					closestBiomesForXZ.push({
-						weight,
-						biome: this._getBiomeForBiomePoint(pt)
-					})
-				}
+				const closestBiomesForXZ = this.getClosestBiomes(i, k)
 				closestBiomes[xzId(i, k)] = closestBiomesForXZ
 			}
 		}
 		return closestBiomes
+	}
+
+	getClosestBiomes(x, z): ClosestBiomes {
+		// Using 2d noise to perturb - looks much better than 1d!!!
+		const xOffset = this._getBiomeXOffset(x, z)
+		// Add random offsets to the z perturbation (to simulate sampling 2 noises instead of the same)
+		const zOffset = this._getBiomeZOffset(x, z)
+
+		const closestPts = this.biomePointGen.getKClosestPointsWithWeights(x+xOffset, z+zOffset, 60)
+		const closestBiomesForXZ: ClosestBiomes = []
+		for (const {weight, pt} of closestPts) {
+			closestBiomesForXZ.push({
+				weight,
+				biome: this._getBiomeForBiomePoint(pt)
+			})
+		}
+
+		return closestBiomesForXZ
 	}
 
 	// x and z should be the center of the biome, as provided by biomePointGenerator closestPoint
@@ -242,36 +289,104 @@ class WorldGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getHeightMapVals(x, z, allClosestBiomesForChunk: closestBiomesForChunk) {
-		const heights = {}
+	_getHeightMapVals(x, z, allClosestBiomesForChunk: ClosestBiomesForChunk): HeightmapVals {
+		const heightmapVals = {
+			groundHeights: {},
+			waterHeights: {},
+		}
+
 		for (let i = x-this.neededOutsideChunkHeightRadius; i < x+this.chunkSize+this.neededOutsideChunkHeightRadius; ++i) {
 			for (let k = z-this.neededOutsideChunkHeightRadius; k < z+this.chunkSize+this.neededOutsideChunkHeightRadius; ++k) {
+				const nonPerturbedIKId = xzId(i, k)
+				const closestBiomePts = allClosestBiomesForChunk[nonPerturbedIKId]
 
-				// no smoothing
+				const perturbX = Math.floor(this.heightmapPerturb.getOctaves(i, k))
+				const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(i+200, k+778))
+				const {groundHeight, waterHeight} = this.getWithRiverHeightmapVal(i+perturbX, k+perturbZ, closestBiomePts)
 
-				// const closestBiomes = allClosestBiomesForChunk[xzId(i, k)]
-				// const closestBiome = closestBiomes[0].biome
-				// heights[xzId(i, k)] = closestBiome.getHeightmapVal(i, k)
-
-
-				// smoothing
-
-				let height = 0
-				let weights = 0
-				const closestBiomePts = allClosestBiomesForChunk[xzId(i, k)]
-				for (const {biome, weight} of closestBiomePts) {
-					height += biome.getHeightmapVal(i, k)*weight
-					weights += weight
-				}
-
-				// if (Math.abs(1-weights) > 0.001) {
-				// 	throw new Error("Weights don't add up!")
-				// }
-
-				heights[xzId(i, k)] = Math.floor(height)
+				heightmapVals.groundHeights[nonPerturbedIKId] = groundHeight
+				heightmapVals.waterHeights[nonPerturbedIKId] = waterHeight
 			}
 		}
-		return heights
+
+		return heightmapVals
+	}
+
+	getWithRiverHeightmapVal(x, z, closestBiomePts: ClosestBiomes): {groundHeight: number, waterHeight: number} {
+		const noRiverHeightmapVal = this.getNoRiverHeightmapVal(x, z, closestBiomePts)
+		const {distFromRiver, riverRadius, riverHeight: heightOfRiver, riverbedHeight} = this.riverGenerator.getInfoNeededForRiverGen(x, z)
+
+		let height = 0
+		let waterHeight = NO_WATER_LEVEL
+
+		const riverCutoff = riverRadius + this.needOutsideRiverDist
+
+		if (distFromRiver <= riverCutoff) {
+			const bankTopCutoff = riverRadius + 4
+			const bankTop = heightOfRiver+2
+
+			// We're near enough to be either the river itself or the river bank
+			if (distFromRiver <= riverRadius) {
+				const distFrac = distFromRiver/(riverRadius)
+				height = riverbedHeight + Math.floor((heightOfRiver-riverbedHeight) * distFrac)
+				waterHeight = heightOfRiver
+			}
+			else if (distFromRiver <= bankTopCutoff) {
+				// Smooth down to river edge from bankTop
+				const distFracToRiverEdge = (distFromRiver - riverRadius) / (bankTopCutoff - riverRadius)
+
+				height = heightOfRiver + Math.ceil((bankTop-heightOfRiver) * distFracToRiverEdge)
+				// console.log(height)
+			}
+			else {
+				// Smooth up to the peak of the bank
+				const distFracToBankTop = (distFromRiver - bankTopCutoff) / (riverCutoff - bankTopCutoff)
+
+				height = bankTop + Math.ceil((noRiverHeightmapVal-bankTop) * distFracToBankTop)
+			}
+		}
+		else {
+			height = noRiverHeightmapVal
+		}
+
+		return {
+			groundHeight: height,
+			waterHeight,
+		}
+	}
+
+	getNoRiverHeightmapVal(x, z, closestBiomePts: ClosestBiomes) {
+		// no smoothing
+
+		// const closestBiomePts = closestBiomePts[xzId(x, z)]
+		// const closestBiome = closestBiomePts[0].biome
+		// heights[xzId(x, z)] = closestBiome.getHeightmapVal(x, z)
+
+		const perturbX = Math.floor(this.heightmapPerturb.getOctaves(x, z))
+		const perturbZ = Math.floor(this.heightmapPerturb.getOctaves(x+200, z+778))
+
+		// const useX = x+perturbX
+		// const useZ = z+perturbZ
+		const useX = x
+		const useZ = z
+
+
+		// smoothing
+
+		let localHeight = 0
+		let weights = 0
+		for (const {biome, weight} of closestBiomePts) {
+			localHeight += biome.getHeightmapVal(useX, useZ)*weight
+			weights += weight
+		}
+
+		// if (Math.abs(1-weights) > 0.001) {
+		// 	throw new Error("Weights don't add up!")
+		// }
+
+		const globalHeight = this.globalHeightmap.getOctaves(useX, useZ)
+
+		return Math.floor(localHeight) + Math.floor(globalHeight)
 	}
 }
 

@@ -105,6 +105,9 @@ export class CavesGenerator {
 		maxBottomRavine: -90,
 		minBottomRavine: -5,
 
+		// maxBottomRavine: -5,
+		// minBottomRavine: -5,
+
 		generators: [],
 		distPerturbNoises: [],
 		yPerturbNoises: [],

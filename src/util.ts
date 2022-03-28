@@ -48,6 +48,85 @@ export function len2d(vec) {
  * @param linePt1
  * @param linePt2
  */
+export function distToLineSegmentWithInfo(pt, linePt1, linePt2): {dist, fracAlong} {
+	const len_sq = xzDistSq(linePt1, linePt2)
+
+	const t = (
+		(pt[0] - linePt1[0]) * (linePt2[0] - linePt1[0]) +
+		(pt[1] - linePt1[1]) * (linePt2[1] - linePt1[1])
+	) / len_sq;
+
+	let closestX
+	let closestZ
+	let fracAlong
+	if (t < 0) {
+		// first endpoint is the closest
+		closestX = linePt1[0];
+		closestZ = linePt1[1]
+		fracAlong = 0
+	}
+	else if (t > 1) {
+		// last endpoint is the closest
+		closestX = linePt2[0];
+		closestZ = linePt2[1]
+		fracAlong = 1
+	}
+	else {
+		closestX = linePt1[0] + t * (linePt2[0] - linePt1[0])
+		closestZ = linePt1[1] + t * (linePt2[1] - linePt1[1])
+		fracAlong = t
+	}
+
+	return {
+		dist: xzDistNoArr(pt, closestX, closestZ),
+		fracAlong,
+	}
+}
+
+// taken from https://github.com/pirxpilot/distance-to-line/blob/master/index.js
+/**
+ *
+ *
+ * @param pt
+ * @param linePt1
+ * @param linePt2
+ */
+export function distToLineSegment(pt, linePt1, linePt2) {
+	const len_sq = xzDistSq(linePt1, linePt2)
+
+	const t = (
+		(pt[0] - linePt1[0]) * (linePt2[0] - linePt1[0]) +
+		(pt[1] - linePt1[1]) * (linePt2[1] - linePt1[1])
+	) / len_sq;
+
+	let closestX
+	let closestZ
+	if (t < 0) {
+		// first endpoint is the closest
+		closestX = linePt1[0];
+		closestZ = linePt1[1]
+	}
+	else if (t > 1) {
+		// last endpoint is the closest
+		closestX = linePt2[0];
+		closestZ = linePt2[1]
+	}
+	else {
+		closestX = linePt1[0] + t * (linePt2[0] - linePt1[0])
+		closestZ = linePt1[1] + t * (linePt2[1] - linePt1[1])
+	}
+
+	return xzDistNoArr(pt, closestX, closestZ)
+}
+
+// taken from https://github.com/pirxpilot/distance-to-line/blob/master/index.js
+/**
+ *
+ *
+ * @param pt
+ * @param linePt1
+ * @param linePt2
+ */
 export function distToClosestLinePoint(pt, linePt1, linePt2) {
 	// var len_2 = p2p_2(linePt1, linePt2);
 	// if (len_2 === 0) {
@@ -69,12 +148,7 @@ export function distToClosestLinePoint(pt, linePt1, linePt2) {
 	// 	return linePt2;
 	// }
 
-	const closestPt = [
-		linePt1[0] + t * (linePt2[0] - linePt1[0]),
-		linePt1[1] + t * (linePt2[1] - linePt1[1])
-	];
-
-	return xzDist(pt, closestPt)
+	return xzDistNoArr(pt, linePt1[0] + t * (linePt2[0] - linePt1[0]), linePt1[1] + t * (linePt2[1] - linePt1[1]))
 }
 
 export function getPerturbOffsetsInChunk(x, z, perturber, chunkSize, lookOutsideChunkDist) {

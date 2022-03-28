@@ -2,7 +2,8 @@ import {getxzFromId, xzDist, xzId} from './util'
 import Rand, {PRNG} from 'rand-seed'
 import {TestBiome} from './TestBiome'
 import {PointsGenerator, VariableDensitySettings} from './PointsGenerator'
-import {closestBiomesForChunk} from './types'
+import {ClosestBiomesForChunk, HeightmapVals} from './types'
+import {NO_WATER_LEVEL} from './constants'
 
 export class TreeGenerator {
 	treeRadius: number
@@ -42,26 +43,26 @@ export class TreeGenerator {
 	}
 
 	// x and z are coords of bottom left block in chunk
-	_getTreeTrunksForBlocksInChunk(x, z, heightMapVals, allClosestBiomesForChunk: closestBiomesForChunk, caveInfos) {
+	_getTreeTrunksForBlocksInChunk(x, z, {groundHeights, waterHeights}: HeightmapVals, allClosestBiomesForChunk: ClosestBiomesForChunk, caveInfos) {
 		const treesAroundPoints = {}
 		for (let i = x-this.treeRadius; i < x+this.chunkSize+this.treeRadius; i++) {
 			for (let k = z-this.treeRadius; k < z+this.chunkSize+this.treeRadius; k++) {
-				const xzID = xzId(i, k)
-				const closestBiomes = allClosestBiomesForChunk[xzID]
+				const ikID = xzId(i, k)
+				const closestBiomes = allClosestBiomesForChunk[ikID]
 				const biome = closestBiomes[0].biome
 				if (biome.treeMinDist !== null) {
 					const isTreeTrunk = this.treePointGen.isPoint(i, k)
-					if (isTreeTrunk) {
+					if (isTreeTrunk && waterHeights[ikID] === NO_WATER_LEVEL) {
 						// Check not on top of cave
-						const heightmapVal = heightMapVals[xzID]
-						// const caveInfo = caveInfos[xzID]
+						const heightmapVal = groundHeights[ikID]
+						// const caveInfo = caveInfos[ikID]
 						// console.log(i, k, caveInfo)
 						if (!this.baseBiome._isCave(i, heightmapVal, k, caveInfos)) {
 							const rand = new Rand(`${i}${k}${this.seed}treeHeight`, PRNG.mulberry32);
 							const treeHeight = Math.floor(rand.next()*(this.maxTreeHeight-this.minTreeHeight)) + this.minTreeHeight
 
 							this._addTreeToTreesNearbyBlocks(treesAroundPoints, i, k, {
-								id: xzID,
+								id: ikID,
 								height: treeHeight,
 							}, x, z)
 						}

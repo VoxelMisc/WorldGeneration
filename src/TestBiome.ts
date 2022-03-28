@@ -1,7 +1,7 @@
 import SimplexNoise from 'simplex-noise'
 import {PointsGenerator} from './PointsGenerator'
 import {manhattanXzDist, NoiseHelper, SimplexCustomOctaveHelper, SimplexOctaveHelper, xzDist, xzId} from './util'
-import constants from './constants'
+import constants, {NO_WATER_LEVEL} from './constants'
 import Rand, {PRNG} from 'rand-seed'
 import {TreeGenerator} from './TreeGenerator'
 import {FloraGenerator} from './FloraGenerator'
@@ -102,9 +102,9 @@ export class TestBiome {
     }
 
     // globalX, globalY are the global co-ordinates of the column. GlobalY is bottom y coordinate of chunk
-    getChunkColumn({array, globalX, globalY, globalZ, localX, localZ, heightMapVals, nearbyTrunks, caveInfos, chunkOres}) {
+    getChunkColumn({array, globalX, globalY, globalZ, localX, localZ, heightmapVals, nearbyTrunks, caveInfos, chunkOres}) {
         for (let j = 0; j < this.chunkSize; ++j) {
-            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightMapVals, nearbyTrunks, caveInfos, chunkOres)
+            let blockId = this._getBlock(globalX, globalY+j, globalZ, heightmapVals, nearbyTrunks, caveInfos, chunkOres)
             array.set(localX, j, localZ, blockId)
         }
     }
@@ -113,7 +113,7 @@ export class TestBiome {
         return `${x}|${z}`
     }
 
-    _getBlock(x, y, z, heightMapVals, treeTrunks, caveInfos, chunkOres) {
+    _getBlock(x, y, z, {groundHeights, waterHeights}, treeTrunks, caveInfos, chunkOres) {
         // // console.log("Calling is cave")
         // if (this._isCave(x, y, z, caveInfos)) {
         //     // console.log("Is cave! yay")
@@ -132,31 +132,20 @@ export class TestBiome {
             return this.blockMetadata["Bedrock"].id
         }
 
-        const height = heightMapVals[xzId(x, z)]
+        const xzID = xzId(x, z)
+        const height = groundHeights[xzID]
 
         if (y <= height && this._isCave(x, y, z, caveInfos)) {
         // if (this._isCave(x, y, z, caveInfos)) {
         //     return this.blockMetadata["Water"].id
-            return 0
+
+            // return 0
         }
         else {
             // if (y === height-1) {
             //     return this.blockMetadata["Grass Block"].id
             // }
             // return 0
-        }
-
-        if (y === height && height < constants.seaLevel-1) {
-            // The floorbed of oceans is sand (incase we have another biome extending into the sea)
-            return this.blockMetadata["Sand"].id
-        }
-
-        if (y === height) {
-            return this.topsoilBlockType
-        }
-
-        if (y >= height-4 && y < height) {
-            return this.lowsoilBlockType
         }
 
         if (y < height-4) {
@@ -168,14 +157,34 @@ export class TestBiome {
             return this.blockMetadata["Stone"].id
         }
 
-        const treeBlock = this.worldGenerator.treeGenerator.getTreeBlock(x, y, z, heightMapVals, treeTrunks)
+        const waterHeight = waterHeights[xzID]
+        // if (y === height && height < constants.seaLevel-1) {
+        if (y === height && waterHeight !== NO_WATER_LEVEL) {
+            // The floorbed of water places is sand
+            return this.blockMetadata["Sand"].id
+        }
+
+        if (y === height) {
+            return this.topsoilBlockType
+        }
+
+        if (y >= height-4 && y < height) {
+            return this.lowsoilBlockType
+        }
+
+        if (waterHeight !== NO_WATER_LEVEL && y > height && y <= waterHeight) {
+            return this.blockMetadata["Water"].id
+        }
+
+
+        const treeBlock = this.worldGenerator.treeGenerator.getTreeBlock(x, y, z, groundHeights, treeTrunks)
         if (treeBlock !== 0) {
             return treeBlock
         }
 
-        if (y < constants.seaLevel) {
-            return this.blockMetadata["Water"].id
-        }
+        // if (y < constants.seaLevel) {
+        //     return this.blockMetadata["Water"].id
+        // }
 
         if (y <= height+this.maxFloraHeight) {
             const groundIsCave = this._isCave(x, height, z, caveInfos)
