@@ -336,11 +336,11 @@ class WorldGenerator {
 				let distFrac = distFromWater/waterRadius
 				if (isLake) {
 					distFrac = distFrac*distFrac*distFrac
-					height = waterbedHeight + Math.floor((heightOfWater-waterbedHeight) * distFrac) - 2
+					height = Math.floor(waterbedHeight + (heightOfWater-waterbedHeight) * distFrac - 2)
 				}
 				else {
 					distFrac = distFrac*distFrac
-					height = waterbedHeight + Math.floor((heightOfWater-waterbedHeight) * distFrac)
+					height = Math.floor(waterbedHeight + (heightOfWater-waterbedHeight) * distFrac)
 				}
 
 				waterHeight = heightOfWater

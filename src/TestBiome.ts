@@ -159,9 +159,15 @@ export class TestBiome {
 
         const waterHeight = waterHeights[xzID]
         // if (y === height && height < constants.seaLevel-1) {
-        if (y === height && waterHeight !== NO_WATER_LEVEL) {
-            // The floorbed of water places is sand
-            return this.blockMetadata["Sand"].id
+        if (waterHeight !== NO_WATER_LEVEL && y === height) {
+            // Determine waterbed block type
+            if (y === waterHeight) {
+                // Place sand on edges of rivers
+                return this.blockMetadata["Sand"].id
+            }
+            else {
+                return this.blockMetadata["Dirt"].id
+            }
         }
 
         if (y === height) {

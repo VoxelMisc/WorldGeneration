@@ -429,10 +429,10 @@ export class WaterBodyGenerator {
 		// 	}
 		// }
 
-		lakeInfo.lakeWaterHeight = existingInfo.originNoWaterHeight-7
+		lakeInfo.lakeWaterHeight = Math.floor(existingInfo.originNoWaterHeight-7)
 
 		const lakeBedOffset = 4 + 0.35*radius
-		lakeInfo.lakeBedHeight = lakeInfo.lakeWaterHeight - lakeBedOffset
+		lakeInfo.lakeBedHeight = Math.floor(lakeInfo.lakeWaterHeight - lakeBedOffset)
 	}
 
 	private getRainfall(x, z) {
