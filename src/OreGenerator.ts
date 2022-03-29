@@ -72,8 +72,9 @@ export class OreGenerator {
 				true,
 				`${seed}${oreName}`,
 				20,
+				chunkSize,
 				null,
-				true
+				true,
 			)
 		}
 	}

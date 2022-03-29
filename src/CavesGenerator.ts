@@ -313,7 +313,8 @@ export class CavesGenerator {
 				true,
 				false,
 				`${seed}PitGen${pitI}`,
-				100
+				100,
+				chunkSize,
 			)
 			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, pitPtsGen, this.pitCaves.maxWidth+2*totalPerturbAmplitude, `${seed}PitGen${pitI}`)
 			this.pitCaves.generators.push(chunkBasedGen)
@@ -335,7 +336,8 @@ export class CavesGenerator {
 				true,
 				false,
 				`${seed}RavineGen${ravineI}`,
-				100
+				100,
+				chunkSize,
 			)
 			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, ravinePtsGen, this.ravineCaves.maxLength+this.ravineCaves.maxWidth+2*totalPerturbAmplitude, `${seed}RavineGen${ravineI}`)
 			this.ravineCaves.generators.push(chunkBasedGen)
@@ -353,7 +355,8 @@ export class CavesGenerator {
 				true,
 				false,
 				`${seed}SphereGen${sphereI}`,
-				100
+				100,
+				chunkSize,
 			)
 			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, spherePtsGen, 2*this.sphereCaves.maxRadius+2*totalPerturbAmplitude, `${seed}SphereGen${sphereI}`)
 			this.sphereCaves.generators.push(chunkBasedGen)

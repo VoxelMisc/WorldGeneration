@@ -7,6 +7,7 @@ import {TreeGenerator} from './TreeGenerator'
 import {FloraGenerator} from './FloraGenerator'
 import { WorldGenerator } from './index'
 import {OreGenerator} from './OreGenerator'
+import {BiomeOpts} from './types'
 
 
 export class TestBiome {
@@ -58,7 +59,7 @@ export class TestBiome {
 
     seed: string
 
-    constructor(chunkSize, blockMetadata, worldGenerator: WorldGenerator, seed) {
+    constructor(chunkSize, blockMetadata, worldGenerator: WorldGenerator, seed, {oreGenerator}: BiomeOpts) {
         this.chunkSize = chunkSize
         this.blockMetadata = blockMetadata
         this.seed = seed
@@ -76,13 +77,14 @@ export class TestBiome {
             seed: `${seed}TestBiome`
         })
 
-        this.oreGenerator = new OreGenerator(blockMetadata, seed, chunkSize)
+        this.oreGenerator = oreGenerator
     }
 
     init() {
         // We need grassChance/cactusChance to be set by inheritees before we can construct this
         this.floraGenerator = new FloraGenerator(
             this.blockMetadata,
+            this.chunkSize,
             this.worldGenerator,
             `${this.seed}flora`,
             this.grassChance,
@@ -228,8 +230,8 @@ export class DesertBiome extends TestBiome {
     cactusChance = 0.0001
     flowerPatchDistApart = null
 
-    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
-        super(chunkSize, blockMetadata, worldGenerator, `${seed}Desert`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed, biomeOpts) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Desert`, biomeOpts)
 
         this.treeMinDist = null
 
@@ -260,13 +262,13 @@ export class PlainsBiome extends TestBiome {
     redTulipChance = 1
     dandelionChance = 1
 
-    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
-        super(chunkSize, blockMetadata, worldGenerator, `${seed}Plains`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed, biomeOpts) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Plains`, biomeOpts)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
 
-        this.treeMinDist = 25
+        this.treeMinDist = 75
 
         this._heightmapSimplex = new SimplexCustomOctaveHelper([
             {
@@ -282,8 +284,8 @@ export class PlainsBiome extends TestBiome {
 }
 
 export class ForestBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
-        super(chunkSize, blockMetadata, worldGenerator, `${seed}Forest`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed, biomeOpts) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Forest`, biomeOpts)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
         this.lowsoilBlockType = blockMetadata["Dirt"].id
@@ -310,8 +312,8 @@ export class OceanBiome extends TestBiome {
 
     // offsettedHeight = -60
     offsettedHeight = -10
-    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
-        super(chunkSize, blockMetadata, worldGenerator, `${seed}Ocean`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed, biomeOpts) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}Ocean`, biomeOpts)
 
         this.topsoilBlockType = blockMetadata["Sand"].id
         this.lowsoilBlockType = blockMetadata["Sand"].id
@@ -330,8 +332,8 @@ export class OceanBiome extends TestBiome {
 }
 
 export class RollingHillsBiome extends TestBiome {
-    constructor(chunkSize, blockMetadata, worldGenerator, seed) {
-        super(chunkSize, blockMetadata, worldGenerator, `${seed}RollingHills`)
+    constructor(chunkSize, blockMetadata, worldGenerator, seed, biomeOpts) {
+        super(chunkSize, blockMetadata, worldGenerator, `${seed}RollingHills`, biomeOpts)
 
         this.topsoilBlockType = blockMetadata["Grass Block"].id
 

@@ -18,7 +18,7 @@ export class FloraGenerator {
 	totalFlowerPatchChance: number
 	flowerPatchPointGen: PointsGenerator
 
-	constructor(blockMetadata, worldGenerator, seed, grassChance, {cactusChance, maxCactusHeight}, flowerSettings) {
+	constructor(blockMetadata, chunkSize, worldGenerator, seed, grassChance, {cactusChance, maxCactusHeight}, flowerSettings) {
 		this.blockMetadata = blockMetadata
 		this.worldGenerator = worldGenerator
 		this.seed = seed
@@ -46,7 +46,7 @@ export class FloraGenerator {
 
 		this.doFlowerGen = flowerSettings.flowerPatchDistApart !== null
 		if (this.doFlowerGen) {
-			this.flowerPatchPointGen = new PointsGenerator(flowerSettings.flowerPatchDistApart, false, true, seed, 15)
+			this.flowerPatchPointGen = new PointsGenerator(flowerSettings.flowerPatchDistApart, false, true, seed, 15, chunkSize)
 		}
 	}
 

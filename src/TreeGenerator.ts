@@ -36,6 +36,7 @@ export class TreeGenerator {
 			false,
 			seed,
 			300,
+			chunkSize,
 			treeVariableDensitySettings,
 			false,
 			2

@@ -251,7 +251,6 @@ export class SimplexOctaveHelper implements NoiseHelper {
 
 		// this._simplex = new SimplexNoise(seed)
 
-		console.log("Made simplex with seedxxx", seed)
 		for (let i = 0; i < numOctaves; i++) {
 			this._simplexes.push(new SimplexNoise(`${seed}${i}`))
 		}

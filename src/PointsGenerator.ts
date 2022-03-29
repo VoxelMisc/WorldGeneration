@@ -5,7 +5,7 @@ import PoissonDiskSampling from 'poisson-disk-sampling'
 import Rand, {PRNG} from 'rand-seed'
 
 const profilePoints = false
-const profiler = profilePoints ? makeProfileHook(110000, 'isPoint') : () => {}
+// const profiler = profilePoints ? makeProfileHook(110000, 'isPoint') : () => {}
 
 export type VariableDensitySettings = {func: Function, min: number, max: number}
 
@@ -35,7 +35,8 @@ export class PointsGenerator {
         useKthClosestPoint: boolean,
         seed: string,
         pointsPerCell: number,
-        variableDensitySettings: VariableDensitySettings=null,
+		chunkSize,
+		variableDensitySettings: VariableDensitySettings=null,
 		useJitteredGrid=false, // When true, many of the other above settings are ignored
 		customCellGap=undefined,
 	) {
@@ -45,13 +46,29 @@ export class PointsGenerator {
 		this.variableDensitySettings = variableDensitySettings
 		this.customCellGap = customCellGap
 		// this.gridSize = minDistanceBetweenPoints * 10
+		this.useJitteredGrid = useJitteredGrid
 
 		this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
-		const remainder = this.gridSize%minDistanceBetweenPoints
-		if (remainder !== 0) {
-			// Round gridsize up to the nearest multiple of minDistanceBetweenPoints
-			// Needed for jittered grid
-			this.gridSize += minDistanceBetweenPoints-remainder
+
+		// Round our grid size
+
+		if (useJitteredGrid) {
+			// Make sure we are multiple of the minDistance
+			const remainder = this.gridSize%minDistanceBetweenPoints
+
+			if (remainder !== 0) {
+				this.gridSize += minDistanceBetweenPoints-remainder
+			}
+		}
+		else {
+			// Otherwise ensure we are chunk-aligned to minimise thrashing
+			const remainder = this.gridSize%chunkSize
+
+			if (remainder !== 0) {
+				// Round gridsize up to the nearest multiple of minDistanceBetweenPoints
+				// Needed for jittered grid
+				this.gridSize += chunkSize-remainder
+			}
 		}
 
 		// const circleRadius = minDistanceBetweenPoints/2
@@ -62,15 +79,11 @@ export class PointsGenerator {
 		this.useKthClosestPoint = useKthClosestPoint
 
 		this.seed = seed
-
-		this.useJitteredGrid = useJitteredGrid
-
-		console.log(this.minDist, this.gridSize)
 	}
 
 	isPoint(x, z) {
 		const cellCoord = this.getCellCoordFromGlobalCoord(x, z);
-		profiler('start')
+		// profiler('start')
 		const {pointsSet} = this.getCell(cellCoord[0], cellCoord[1])
 
 		// for (let pt of cellPts) {
@@ -83,12 +96,12 @@ export class PointsGenerator {
 
 		if (pointsSet.has(`${x}|${z}`)) {
 			// profiler('findPt')
-			profiler('end')
+			// profiler('end')
 			return true
 		}
 
 		// profiler('findPt')
-		profiler('end')
+		// profiler('end')
 		return false
 	}
 
@@ -288,7 +301,7 @@ export class PointsGenerator {
 					shape: [shapeSize, shapeSize],
 					minDistance: minDistance,
 					maxDistance: maxDistance,
-					tries: 40,
+					tries: 10,
 					distanceFunction: distFunc
 				}, randFunc)
 			}

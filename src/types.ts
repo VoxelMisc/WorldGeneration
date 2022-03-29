@@ -1,4 +1,5 @@
 import {TestBiome} from './TestBiome'
+import {OreGenerator} from './OreGenerator'
 
 export type ClosestBiomesForChunk = Record<string, ClosestBiomes>
 export type ClosestBiomes = {weight: number, biome: TestBiome}[]
@@ -15,3 +16,7 @@ export type CaveInfo = {
 	low: number,
 	high: number,
 }[]
+
+export type BiomeOpts = {
+	oreGenerator: OreGenerator,
+}

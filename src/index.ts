@@ -7,10 +7,11 @@ import {SimplexCustomOctaveHelper, SimplexOctaveHelper, TxzId, xzDist, xzId} fro
 import Rand, {PRNG} from 'rand-seed'
 import {CavesGenerator} from './CavesGenerator'
 import {TreeGenerator} from './TreeGenerator'
-import {ClosestBiomes, ClosestBiomesForChunk, HeightmapVals} from './types'
+import {BiomeOpts, ClosestBiomes, ClosestBiomesForChunk, HeightmapVals} from './types'
 import cruncher from "voxel-crunch"
 import {WaterBodyGenerator} from './WaterBodyGenerator'
 import {NO_CAVES_RESTRICTION_FROM_WATER, NO_WATER_LEVEL} from './constants'
+import {OreGenerator} from './OreGenerator'
 const MD5 = require('md5.js')
 
 const profileGetChunk = false
@@ -43,11 +44,17 @@ class WorldGenerator {
 	needOutsideWaterDist: number = 15
 
 	constructor(chunkSize, blockMetadata, seed) {
+
+		const biomeOpts: BiomeOpts = {
+			oreGenerator: new OreGenerator(blockMetadata, seed, chunkSize),
+		}
+
 		this.baseBiome = new TestBiome(
 			chunkSize,
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 
 		const desertBiome = new DesertBiome(
@@ -55,30 +62,35 @@ class WorldGenerator {
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 		const plainsBiome = new PlainsBiome(
 			chunkSize,
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 		const forestBiome = new ForestBiome(
 			chunkSize,
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 		const oceanBiome = new OceanBiome(
 			chunkSize,
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 		const rollingHillsBiome = new RollingHillsBiome(
 			chunkSize,
 			blockMetadata,
 			this,
 			seed,
+			biomeOpts,
 		)
 		this.biomes = [
 			{ biome: desertBiome, frequency: 10, cumuFreq: null }, // cumuFreq set below
@@ -124,7 +136,7 @@ class WorldGenerator {
 
 		this.chunkSize = chunkSize
 
-		this.biomePointGen = new PointsGenerator(150, false, true, seed, 8)
+		this.biomePointGen = new PointsGenerator(150, false, true, seed, 8, chunkSize)
 
 		this.biomeOffsetSimplex = new SimplexCustomOctaveHelper([
 			{
