@@ -1,22 +1,21 @@
 import {
 	distToClosestLinePoint,
-	dotProduct2d,
+	// dotProduct2d,
 	getPerturbOffsetsInChunk,
-	getXZPerturbOffsetsFromAll, len2d,
-	normalise2d,
-	SimplexCustomOctaveHelper, xzDistNoArr,
-	xzId,
+	getXZPerturbOffsetsFromAll, Int16FourDArray, Int16TwoDArray,
+	normalise2d, Random,
+	SimplexCustomOctaveHelper, SimplexThresholdOctaveHelper, xzDistNoArr,
 } from './util'
 import {ChunkBasedPointGenerator} from './ChunkBasedPointGenerator'
 import {PointsGenerator} from './PointsGenerator'
-import Rand, {PRNG} from 'rand-seed'
-import {CaveInfo, CaveInfos, HeightmapVals} from './types'
-import {NO_CAVES_RESTRICTION_FROM_WATER} from './constants'
+import {CaveInfos, HeightmapVals} from './types'
+import {CANNOT_MEET_THRESHOLD, NO_CAVE, NO_CAVES_RESTRICTION_FROM_WATER} from './constants'
 
 export class CavesGenerator {
 	spaghettCaves: {count: number,
 		thresholdNoiseSetup,
-		thresholdPerturbSetup,
+		// We could just include the perturb noise in the threshold noise itself
+		// But I tuned the setup to look good before realising this
 		heightNoiseSetup,
 		heightPerturbSetup,
 		cutoffNoiseSetup,
@@ -24,7 +23,6 @@ export class CavesGenerator {
 		height,
 		heightPercentCap,
 		thresholdNoises,
-		thresholdPerturbNoises,
 		heightNoises,
 		heightPerturbNoises,
 		cutoffNoises,
@@ -39,12 +37,12 @@ export class CavesGenerator {
 		// count: 0,
 		maxWidth: 40,
 		minWidth: 15,
-		distApartInChunks: 4,
+		distApartInChunks: 5,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
 			{ amplitude: 10, frequency: 1/100, },
-			{ amplitude: 30, frequency: 1/500, },
+			{ amplitude: 29, frequency: 1/500, },
 			// { amplitude: 50, frequency: 1/1500, },
 		],
 		yPerturbNoiseSetup: [
@@ -61,11 +59,9 @@ export class CavesGenerator {
 			{ amplitude: 2, frequency: 1/15, },
 		],
 		minHeight: 25,
-		maxHeight: 55,
-		minBottomPit: -90,
+		maxHeight: 45,
+		minBottomPit: -99,
 		maxBottomPit: -25,
-		// minBottomPit: -10,
-		// maxBottomPit: -10,
 
 		generators: [],
 		distPerturbNoises: [],
@@ -75,203 +71,134 @@ export class CavesGenerator {
 	}
 
 	ravineCaves = {
-		count: 1,
+		count: 2,
 		// count: 1,
 		maxWidth: 15,
 		minWidth: 10,
 		maxLength: 90,
 		minLength: 50,
-		distApartInChunks: 4,
+		// This dist apart is the same as if we had count 1 and distApart 5
+		// We could reduce it to 6 if we want more ravines
+		distApartInChunks: 7,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
 			{ amplitude: 10, frequency: 1/100, },
 			{ amplitude: 30, frequency: 1/500, },
-			// { amplitude: 50, frequency: 1/1500, },
 		],
 		yPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/10, },
 			{ amplitude: 3, frequency: 1/50, },
 		],
-		// heightPerturbNoiseSetup: [
-		// 	{ amplitude: 3, frequency: 1/10, },
-		// 	{ amplitude: 10, frequency: 1/50, },
-		// ],
-		// edgesTargetMidpointNoiseSetup: [
-		// 	{ amplitude: 1, frequency: 1/3, },
-		// 	{ amplitude: 2, frequency: 1/7, },
-		// 	{ amplitude: 2, frequency: 1/15, },
-		// ],
 		minHeight: 25,
-		maxHeight: 55,
-		maxBottomRavine: -90,
+		maxHeight: 45,
+		maxBottomRavine: -99,
 		minBottomRavine: -5,
-
-		// maxBottomRavine: -5,
-		// minBottomRavine: -5,
 
 		generators: [],
 		distPerturbNoises: [],
 		yPerturbNoises: [],
-		// heightPerturbNoises: [],
 		edgesTargetMidpointNoise: [],
 	}
 
 	sphereCaves = {
-		// count: 0,
 		count: 1,
 		maxRadius: 6,
 		minRadius: 20,
-		distApartInChunks: 3,
+		distApartInChunks: 4,
 		distPerturbNoiseSetup: [
 			{ amplitude: 1, frequency: 1/8, },
 			{ amplitude: 3, frequency: 1/20, },
-			// { amplitude: 10, frequency: 1/100, },
-			// { amplitude: 30, frequency: 1/500, },
-			// { amplitude: 50, frequency: 1/1500, },
 		],
-		// yPerturbNoiseSetup: [
-		// 	{ amplitude: 1, frequency: 1/10, },
-		// 	{ amplitude: 3, frequency: 1/50, },
-		// ],
-		// heightPerturbNoiseSetup: [
-		// 	{ amplitude: 3, frequency: 1/10, },
-		// 	{ amplitude: 10, frequency: 1/50, },
-		// ],
-		// edgesTargetMidpointNoiseSetup: [
-		// 	{ amplitude: 1, frequency: 1/3, },
-		// 	{ amplitude: 2, frequency: 1/7, },
-		// 	{ amplitude: 2, frequency: 1/15, },
-		// ],
-		// minCentreSphere: -10,
-		minCentreSphere: -60,
+		minCentreSphere: -79,
 		maxCentreSphere: 10,
 
 		generators: [],
 		distPerturbNoises: [],
-		// yPerturbNoises: [],
-		// heightPerturbNoises: [],
-		// edgesTargetMidpointNoise: [],
 	}
 
 	seed: string
 	lookOutsideChunkDist: number
+
+	numCaves: number
+	numSpaghettiCaves: number
 
 	constructor(seed, chunkSize, lookOutsideChunkDist) {
 		this.chunkSize = chunkSize
 		this.seed = seed
 		this.lookOutsideChunkDist = lookOutsideChunkDist
 
-		this.spaghettCaves = [
-			{
-				count: 4,
-				thresholdNoiseSetup: [
-					{amplitude: 1.5, frequency: 1/300},
-					{amplitude: 0.5, frequency: 1/150},
-				],
-				thresholdPerturbSetup: [
-					{ amplitude: 1, frequency: 1/5, },
-					{ amplitude: 5, frequency: 1/70, },
-				],
-				heightNoiseSetup: [
-					{amplitude: 25, frequency: 1/200},
-					{amplitude: 12, frequency: 1/150},
-				],
-				heightPerturbSetup: [
-					{ amplitude: 1, frequency: 1/4, },
-					{ amplitude: 5, frequency: 1/10, },
-				],
-				cutoffNoiseSetup: [
-					{amplitude: 1, frequency: 1/250},
-					{ amplitude: 0.1, frequency: 1/70, },
-					{ amplitude: 0.01, frequency: 1/5, },
-				],
-				caveOffset: null, // Set below
-				threshold: {low: -0.09, high: 0.09},
-				height: 9,
-				heightPercentCap: 0.5,
-				thresholdNoises: [],
-				thresholdPerturbNoises: [],
-				heightNoises: [],
-				heightPerturbNoises: [],
-				cutoffNoises: [],
-				caveBot: -30,
-			},
+		const mainSpaghettCave = {
+			count: 1,
+			thresholdNoiseSetup: [
+				{amplitude: 1.5, frequency: 1 / 300},
+				{amplitude: 0.5, frequency: 1 / 150},
+				{amplitude: 0.35, frequency: 1 / 70,},
+				{amplitude: 0.04, frequency: 1 / 5,},
+			],
+			heightNoiseSetup: [
+				{amplitude: 25, frequency: 1 / 200},
+				{amplitude: 12, frequency: 1 / 150},
+			],
+			heightPerturbSetup: [
+				{amplitude: 1, frequency: 1 / 4,},
+				{amplitude: 5, frequency: 1 / 10,},
+			],
+			cutoffNoiseSetup: [
+				{amplitude: 1, frequency: 1 / 300},
+			],
+			caveOffset: null, // Set below
+			threshold: {low: -0.1, high: 0.1},
+			height: 9,
+			heightPercentCap: 0.5,
+			thresholdNoises: [],
+			heightNoises: [],
+			heightPerturbNoises: [],
+			cutoffNoises: [],
+			caveBot: 0, // set below for each copy of spaghett cave
+		}
 
 
+		const spaghettCaveBots = [{caveBot: -15, amt: 1}, {caveBot: -35, amt: 1}, {caveBot: -55, amt: 2}, {caveBot: -75, amt: 1}, {caveBot: -99, amt: 1}]
+		this.spaghettCaves = []
+		for (const {caveBot, amt} of spaghettCaveBots) {
+			this.spaghettCaves.push({
+				...JSON.parse(JSON.stringify(mainSpaghettCave)),
+				caveBot,
+				count: amt,
+			})
+		}
 
-			// to delete
-			// {
-			// 	count: 1,
-			// 	thresholdNoiseSetup: [
-			// 		{amplitude: 1, frequency: 1/300},
-			// 		{amplitude: 0.3, frequency: 1/150},
-			// 	],
-			// 	thresholdPerturbSetup: [
-			// 		{ amplitude: 1, frequency: 1/5, },
-			// 		{ amplitude: 5, frequency: 1/70, },
-			// 	],
-			// 	heightNoiseSetup: [
-			// 		{amplitude: 150, frequency: 1/2000},
-			// 		{amplitude: 100, frequency: 1/1500},
-			// 		{amplitude: 50, frequency: 1/700},
-			// 		{amplitude: 25, frequency: 1/400},
-			// 	],
-			// 	heightPerturbSetup: [
-			// 		{ amplitude: 1, frequency: 1/4, },
-			// 		{ amplitude: 5, frequency: 1/10, },
-			// 	],
-			// 	cutoffNoiseSetup: [
-			// 		{amplitude: 1, frequency: 1/1000},
-			// 		{ amplitude: 0.1, frequency: 1/70, },
-			// 		{ amplitude: 0.01, frequency: 1/5, },
-			// 	],
-			// 	caveOffset: null, // Set below
-			// 	threshold: {low: -0.09, high: 0.09},
-			// 	height: 9,
-			// 	heightPercentCap: 0.5,
-			// 	thresholdNoises: [],
-			// 	thresholdPerturbNoises: [],
-			// 	heightNoises: [],
-			// 	heightPerturbNoises: [],
-			// 	cutoffNoises: [],
-			// 	caveBot: 300,
-			// },
-			// {
-			// 	count: 1,
-			// 	thresholdNoiseSetup: [
-			// 		{amplitude: 1, frequency: 1/300},
-			// 		{amplitude: 0.3, frequency: 1/150},
-			// 	],
-			// 	thresholdPerturbSetup: [
-			// 		{ amplitude: 1, frequency: 1/5, },
-			// 		{ amplitude: 5, frequency: 1/70, },
-			// 	],
-			// 	heightNoiseSetup: [
-			// 		{amplitude: 100, frequency: 1/1200},
-			// 		{amplitude: 50, frequency: 1/800},
-			// 		{amplitude: 25, frequency: 1/300},
-			// 		{amplitude: 12, frequency: 1/150},
-			// 	],
-			// 	heightPerturbSetup: [
-			// 		{ amplitude: 1, frequency: 1/4, },
-			// 		{ amplitude: 5, frequency: 1/10, },
-			// 	],
-			// 	cutoffNoiseSetup: [{}],
-			// 	caveOffset: null, // Set below
-			// 	threshold: {low: -0.07, high: 0.07},
-			// 	height: 6,
-			// 	heightPercentCap: 0.5,
-			// 	thresholdNoises: [],
-			// 	thresholdPerturbNoises: [],
-			// 	heightNoises: [],
-			// 	heightPerturbNoises: [],
-			// 	cutoffNoises: [],
-			// 	caveTop: 160,
-			// },
-		]
-
-
+		// The same as above but with a low bot and low height changes (designed for gold/diamond discovery)
+		this.spaghettCaves.push({
+			count: 1,
+			thresholdNoiseSetup: [
+				{amplitude: 1.5, frequency: 1 / 300},
+				{amplitude: 0.5, frequency: 1 / 150},
+				{amplitude: 0.35, frequency: 1 / 70,},
+				{amplitude: 0.04, frequency: 1 / 5,},
+			],
+			heightNoiseSetup: [
+				{amplitude: 15, frequency: 1 / 100},
+				{amplitude: 4, frequency: 1 / 75},
+			],
+			heightPerturbSetup: [
+				{amplitude: 1, frequency: 1 / 4,},
+				{amplitude: 5, frequency: 1 / 10,},
+			],
+			cutoffNoiseSetup: [
+				{amplitude: 1, frequency: 1 / 300},
+			],
+			caveOffset: null, // Set below
+			threshold: {low: -0.1, high: 0.1},
+			height: 9,
+			heightPercentCap: 0.5,
+			thresholdNoises: [],
+			heightNoises: [],
+			heightPerturbNoises: [],
+			cutoffNoises: [],
+			caveBot: -95, // set below for each copy of spaghett cave
+		})
 
 
 		for (const caveType of this.spaghettCaves) {
@@ -280,20 +207,23 @@ export class CavesGenerator {
 				amplitudeSum += amplitude
 			}
 
-			// caveType.caveOffset = caveType.caveBot-amplitudeSum
-			// caveType.caveOffset = -amplitudeSum + (caveType.caveBot - amplitudeSum)
 			caveType.caveOffset = caveType.caveBot + amplitudeSum
 		}
+
+		this.numSpaghettiCaves = 0
+		this.numCaves = 0
 
 		for (let caveTypeI = 0; caveTypeI < this.spaghettCaves.length; caveTypeI++) {
 			const caveType = this.spaghettCaves[caveTypeI]
 			for (let caveI = 0; caveI < caveType.count; caveI++) {
-				caveType.thresholdNoises.push(new SimplexCustomOctaveHelper(caveType.thresholdNoiseSetup, `${seed}Cave${caveTypeI}${caveI}`))
-				caveType.thresholdPerturbNoises.push(new SimplexCustomOctaveHelper(caveType.thresholdPerturbSetup, `${seed}CaveThresholdPerturb${caveTypeI}${caveI}`))
+				caveType.thresholdNoises.push(new SimplexThresholdOctaveHelper(caveType.thresholdNoiseSetup, caveType.threshold, `${seed}Cave${caveTypeI}${caveI}`))
 				caveType.heightNoises.push(new SimplexCustomOctaveHelper(caveType.heightNoiseSetup, `${seed}CaveHeightNoise${caveTypeI}${caveI}`))
 				caveType.heightPerturbNoises.push(new SimplexCustomOctaveHelper(caveType.heightPerturbSetup, `${seed}CaveHeightPerturb${caveTypeI}${caveI}`))
 
 				caveType.cutoffNoises.push(new SimplexCustomOctaveHelper(caveType.cutoffNoiseSetup, `${seed}CaveCutoff${caveTypeI}${caveI}`))
+
+				this.numCaves++
+				this.numSpaghettiCaves++
 			}
 		}
 
@@ -318,6 +248,12 @@ export class CavesGenerator {
 			)
 			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, pitPtsGen, this.pitCaves.maxWidth+2*totalPerturbAmplitude, `${seed}PitGen${pitI}`)
 			this.pitCaves.generators.push(chunkBasedGen)
+
+			// They cannot overlap - use distApartInChunks/2 as caves dist is evaluated poisson-disk style and so can lie outside that circle dist
+			// (while they then may still overlap as a result of the perturbation noise being applied to both x and z axis - chunkbasedpointgen queries in a square)
+			console.assert(chunkBasedGen.maxRadiusChunk <= (this.pitCaves.distApartInChunks)/2, `cannot have overlapping cave features, ${chunkBasedGen.maxRadiusChunk} ${(this.pitCaves.distApartInChunks)/2}`)
+
+			this.numCaves++
 		}
 
 		for (let ravineI = 0; ravineI < this.ravineCaves.count; ravineI++) {
@@ -328,8 +264,6 @@ export class CavesGenerator {
 			}
 
 			this.ravineCaves.yPerturbNoises.push(new SimplexCustomOctaveHelper(this.ravineCaves.yPerturbNoiseSetup, `${seed}yRavinePerturb${ravineI}`))
-			// this.ravineCaves.heightPerturbNoises.push(new SimplexCustomOctaveHelper(this.ravineCaves.heightPerturbNoiseSetup, `${seed}heightRavinePerturb${ravineI}`))
-			// this.ravineCaves.edgesTargetMidpointNoise.push(new SimplexCustomOctaveHelper(this.ravineCaves.edgesTargetMidpointNoiseSetup, `${seed}edgesRavinePerturb${ravineI}`))
 
 			const ravinePtsGen = new PointsGenerator(
 				this.ravineCaves.distApartInChunks,
@@ -339,8 +273,13 @@ export class CavesGenerator {
 				100,
 				chunkSize,
 			)
-			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, ravinePtsGen, this.ravineCaves.maxLength+this.ravineCaves.maxWidth+2*totalPerturbAmplitude, `${seed}RavineGen${ravineI}`)
+			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, ravinePtsGen, Math.max(this.ravineCaves.maxLength, this.ravineCaves.maxWidth)+2*totalPerturbAmplitude, `${seed}RavineGen${ravineI}`)
 			this.ravineCaves.generators.push(chunkBasedGen)
+
+			// They cannot overlap
+			console.assert(chunkBasedGen.maxRadiusChunk <= (this.ravineCaves.distApartInChunks)/2, `cannot have overlapping cave features, ${chunkBasedGen.maxRadiusChunk} ${(this.ravineCaves.distApartInChunks)/2}`)
+
+			this.numCaves++
 		}
 
 		for (let sphereI = 0; sphereI < this.sphereCaves.count; sphereI++) {
@@ -360,24 +299,36 @@ export class CavesGenerator {
 			)
 			const chunkBasedGen = new ChunkBasedPointGenerator(chunkSize, spherePtsGen, 2*this.sphereCaves.maxRadius+2*totalPerturbAmplitude, `${seed}SphereGen${sphereI}`)
 			this.sphereCaves.generators.push(chunkBasedGen)
+
+			console.assert(chunkBasedGen.maxRadiusChunk <= (this.sphereCaves.distApartInChunks)/2, `cannot have overlapping cave features, ${chunkBasedGen.maxRadiusChunk} ${(this.sphereCaves.distApartInChunks)/2}`)
+
+			this.numCaves++
 		}
 	}
 
 	// x and z are bottom left corner blocks in chunk
-	getCaveInfoForChunk(x, z, heightmapVals: HeightmapVals) {
-		const caveInfos = {}
+	getCaveInfoForChunk(x, z, heightmapVals: HeightmapVals): CaveInfos {
+		// CaveInfos details the cave location for each cave type in each x/z column
+		// I.e. dims are x/z/caveType/[y-start and end]
+		// Do this to save memory over a normal js array/object for when we cache it
+		const caveInfos = new Int16FourDArray(this.chunkSize, [x, z], this.numCaves, 2, this.lookOutsideChunkDist)
+		// Default caveinfos to NO_CAVE
+		caveInfos.fill(NO_CAVE)
+
+
 		for (let i = x-this.lookOutsideChunkDist; i < x+this.chunkSize+this.lookOutsideChunkDist; ++i) {
 			for (let k = z-this.lookOutsideChunkDist; k < z+this.chunkSize+this.lookOutsideChunkDist; ++k) {
-				const caveInfoList = []
-				caveInfos[xzId(i, k)] = caveInfoList
-
-				this._addSpaghettCavesForColumn(i, k, caveInfoList, heightmapVals.groundHeights)
+				this._addSpaghettCavesForColumn(i, k, caveInfos, heightmapVals.groundHeights, 0)
 			}
 		}
 
-		this._addPitCaves(x, z, caveInfos, heightmapVals.groundHeights)
-		this._addSphereCaves(x, z, caveInfos, heightmapVals.groundHeights)
-		this._addRavineCaves(x, z, caveInfos, heightmapVals.groundHeights)
+		let numCaveTypesDone = this.numSpaghettiCaves
+
+		this._addPitCaves(x, z, caveInfos, heightmapVals.groundHeights, numCaveTypesDone)
+		numCaveTypesDone += this.pitCaves.count
+		this._addSphereCaves(x, z, caveInfos, heightmapVals.groundHeights, numCaveTypesDone)
+		numCaveTypesDone += this.sphereCaves.count
+		this._addRavineCaves(x, z, caveInfos, heightmapVals.groundHeights, numCaveTypesDone)
 
 		this.removeCavesNearWater(x, z, caveInfos, heightmapVals)
 
@@ -387,26 +338,30 @@ export class CavesGenerator {
 	/**
 	 * @param x block x of column
 	 * @param z block z of column
-	 * @param caveInfoList
+	 * @param caveInfos
 	 * @param groundHeights
+	 * @param caveTypeStartI
 	 */
-	_addSpaghettCavesForColumn(x, z, caveInfoList: CaveInfo, groundHeights) {
+	_addSpaghettCavesForColumn(x, z, caveInfos: CaveInfos, groundHeights: Int16TwoDArray, caveTypeStartI: number) {
 		for (const caveType of this.spaghettCaves) {
 			for (let caveI = 0; caveI < caveType.count; caveI++) {
-				let perturbX = caveType.thresholdPerturbNoises[caveI].getOctaves(x, z)
-				let perturbZ = caveType.thresholdPerturbNoises[caveI].getOctaves(x+390, z-270)
-
-				let noiseVal = caveType.thresholdNoises[caveI].getOctaves(x+perturbX, z+perturbZ)
-				// let noiseVal = caveType.thresholdNoises[caveI].getOctaves(x, z)
-				const isCave = noiseVal > caveType.threshold.low && noiseVal < caveType.threshold.high
-
-				if (!isCave) {
-					continue
-				}
+				caveTypeStartI++
 
 				let cutoffVal = caveType.cutoffNoises[caveI].getOctaves(x, z)
 				const fullCutoffAt = 0.08
 				if (cutoffVal >= fullCutoffAt) {
+					continue
+				}
+
+				let noiseVal = caveType.thresholdNoises[caveI].getOctaves(x, z)
+
+				if (noiseVal === CANNOT_MEET_THRESHOLD) {
+					continue
+				}
+
+				const isCave = noiseVal > caveType.threshold.low && noiseVal < caveType.threshold.high
+
+				if (!isCave) {
 					continue
 				}
 
@@ -435,14 +390,12 @@ export class CavesGenerator {
 				let top = Math.floor(caveYFromNoise+caveHeight + caveType.caveOffset)
 
 				// Don't want hovering grass, so if we are one block away from the surface increase top by one
-				if (top+1 === groundHeights[xzId(x, z)]) {
+				if (top+1 === groundHeights.get(x, z)) {
 					top++
 				}
 
-				caveInfoList.push({
-					low: bot,
-					high: top,
-				})
+				caveInfos.set(x, z, caveTypeStartI-1, 0, bot)
+				caveInfos.set(x, z, caveTypeStartI-1, 1, top)
 			}
 		}
 	}
@@ -454,9 +407,12 @@ export class CavesGenerator {
 	 * @param z
 	 * @param caveInfos
 	 * @param groundHeights
+	 * @param caveTypeStartI
 	 */
-	_addPitCaves(x, z, caveInfos, groundHeights) {
+	_addPitCaves(x, z, caveInfos: CaveInfos, groundHeights: Int16TwoDArray, caveTypeStartI: number) {
 		for (let pitCaveI = 0; pitCaveI < this.pitCaves.generators.length; pitCaveI++) {
+			caveTypeStartI++
+
 			const gen = this.pitCaves.generators[pitCaveI]
 			const distPerturber = this.pitCaves.distPerturbNoises[pitCaveI]
 
@@ -464,7 +420,7 @@ export class CavesGenerator {
 
 			const nearbyPits = gen.getSurroundingFeatures(x, z)
 			for (const [pitX, pitZ] of nearbyPits) {
-				const rand = new Rand(`pit${pitX}|${pitZ}|${pitCaveI}${this.seed}`, PRNG.mulberry32);
+				const rand = new Random(`pit${pitX}|${pitZ}|${pitCaveI}${this.seed}`);
 
 				const pitWidth = Math.floor(rand.next()*(this.pitCaves.maxWidth-this.pitCaves.minWidth)) + this.pitCaves.minWidth
 				const pitLength = Math.floor(rand.next()*(this.pitCaves.maxWidth-this.pitCaves.minWidth)) + this.pitCaves.minWidth
@@ -512,18 +468,16 @@ export class CavesGenerator {
 							top -= topDistFromMid*edgeDistFrac
 						}
 
-						const xzID = xzId(i, k)
-
 						bot = Math.floor(bot)
 						top = Math.floor(top)
 
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === groundHeights[xzID]) {
+						if (top+1 === groundHeights.get(i, k)) {
 							top++
 						}
 
-						const caveInfoList = caveInfos[xzID]
-						caveInfoList.push({low: bot, high: top})
+						caveInfos.set(i, k, caveTypeStartI-1, 0, bot)
+						caveInfos.set(i, k, caveTypeStartI-1, 1, top)
 					}
 				}
 			}
@@ -537,9 +491,12 @@ export class CavesGenerator {
 	 * @param z
 	 * @param caveInfos
 	 * @param groundHeights
+	 * @param caveTypeStartI
 	 */
-	_addRavineCaves(x, z, caveInfos, groundHeights) {
+	_addRavineCaves(x, z, caveInfos: CaveInfos, groundHeights: Int16TwoDArray, caveTypeStartI: number) {
 		for (let ravineCaveI = 0; ravineCaveI < this.ravineCaves.generators.length; ravineCaveI++) {
+			caveTypeStartI++
+
 			const gen = this.ravineCaves.generators[ravineCaveI]
 			const distPerturber = this.ravineCaves.distPerturbNoises[ravineCaveI]
 
@@ -548,15 +505,10 @@ export class CavesGenerator {
 			const nearbyRavines = gen.getSurroundingFeatures(x, z)
 			for (const ravinePos of nearbyRavines) {
 				const [ravineX, ravineZ] = ravinePos
-				const rand = new Rand(`rav${ravineX}|${ravineZ}|${ravineCaveI}${this.seed}`, PRNG.mulberry32);
+				const rand = new Random(`rav${ravineX}|${ravineZ}|${ravineCaveI}${this.seed}`);
 
 				const ravineWidth = Math.floor(rand.next()*(this.ravineCaves.maxWidth-this.ravineCaves.minWidth)) + this.ravineCaves.minWidth
 				const ravineLength = Math.floor(rand.next()*(this.ravineCaves.maxLength-this.ravineCaves.minLength)) + this.ravineCaves.minLength
-
-				// const pitMaxX = pitX+pitWidth/2
-				// const pitMinX = pitX-pitWidth/2
-				// const pitMaxZ = pitZ+pitLength/2
-				// const pitMinZ = pitZ-pitLength/2
 
 				const bottomPitY = Math.floor(rand.next()*(this.ravineCaves.maxBottomRavine-this.ravineCaves.minBottomRavine)) + this.ravineCaves.minBottomRavine
 				const ravineHeight = Math.floor(rand.next()*(this.ravineCaves.maxHeight-this.ravineCaves.minHeight)) + this.ravineCaves.minHeight
@@ -575,21 +527,10 @@ export class CavesGenerator {
 						const useZ = k+perturbDists[1]
 						const usePt = [useX, useZ]
 
-						// if (useX > pitMaxX || useX < pitMinX || useZ > pitMaxZ || useZ < pitMinZ) {
-						// 	continue
-						// }
-
 						const dirToCenter = [useX-ravineX, useZ-ravineZ]
 						normalise2d(dirToCenter)
 
-						// const absDotProd = Math.abs(dotProduct2d(ravineDir, dirToCenter))
-
-						// const allowedDist = ravineWidth + (Math.pow(absDotProd, 15))*ravineLength
-
 						const distToCenter = xzDistNoArr(ravinePos, useX, useZ)
-						// if (distToCenter > allowedDist) {
-						// 	continue
-						// }
 
 						// Get the dist to the line segment representing the ravine
 						// I.e. our dist along the ravine's cross-axis
@@ -608,7 +549,6 @@ export class CavesGenerator {
 
 
 						const yPerturb = this.ravineCaves.yPerturbNoises[ravineCaveI].getOctaves(i, k)
-						// const heightPerturb = this.ravineCaves.heightPerturbNoises[ravineCaveI].getOctaves(i, k)
 						let bot = bottomPitY+yPerturb
 						let top = bottomPitY+ravineHeight+yPerturb
 
@@ -616,7 +556,6 @@ export class CavesGenerator {
 
 						const distFromEdge = ravineWidthToUse-distAlongCrossAxis
 
-						// const combinedDist = Math.min(distToEdgeX, distToEdgeZ)
 						if (distFromEdge < modifyAtDist) {
 							const edgeDistFrac = 1-(distFromEdge/modifyAtDist)
 
@@ -626,14 +565,13 @@ export class CavesGenerator {
 						bot = Math.floor(bot)
 						top = Math.floor(top)
 
-						const xzID = xzId(i, k)
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === groundHeights[xzID]) {
+						if (top+1 === groundHeights.get(i, k)) {
 							top++
 						}
 
-						const caveInfoList = caveInfos[xzID]
-						caveInfoList.push({low: bot, high: top})
+						caveInfos.set(i, k, caveTypeStartI-1, 0, bot)
+						caveInfos.set(i, k, caveTypeStartI-1, 1, top)
 					}
 				}
 			}
@@ -647,9 +585,12 @@ export class CavesGenerator {
 	 * @param z
 	 * @param caveInfos
 	 * @param groundHeights
+	 * @param caveTypeStartI
 	 */
-	_addSphereCaves(x, z, caveInfos, groundHeights) {
+	_addSphereCaves(x, z, caveInfos: CaveInfos, groundHeights: Int16TwoDArray, caveTypeStartI: number) {
 		for (let sphereCaveI = 0; sphereCaveI < this.sphereCaves.generators.length; sphereCaveI++) {
+			caveTypeStartI++
+
 			const gen = this.sphereCaves.generators[sphereCaveI]
 			const distPerturber = this.sphereCaves.distPerturbNoises[sphereCaveI]
 
@@ -657,7 +598,7 @@ export class CavesGenerator {
 
 			const nearbySpheres = gen.getSurroundingFeatures(x, z)
 			for (const [sphereX, sphereZ] of nearbySpheres) {
-				const rand = new Rand(`sph${sphereX}|${sphereZ}|${sphereCaveI}${this.seed}`, PRNG.mulberry32);
+				const rand = new Random(`sph${sphereX}|${sphereZ}|${sphereCaveI}${this.seed}`);
 
 				const radius = Math.floor(rand.next()*(this.sphereCaves.maxRadius-this.sphereCaves.minRadius)) + this.sphereCaves.minRadius
 				const radiusSq = radius*radius
@@ -687,18 +628,48 @@ export class CavesGenerator {
 						// Our max and min yoffsets from the center is:
 						const y = Math.sqrt(radiusSq-xzDistSq)
 
-						const xzID = xzId(i, k)
-						const caveInfoList = caveInfos[xzID]
-
 						const bot = Math.floor(sphereCenterY-y)
 						let top = Math.floor(sphereCenterY+y)
 
 						// Don't want hovering grass, so if we are one block away from the surface increase top by one
-						if (top+1 === groundHeights[xzID]) {
+						if (top+1 === groundHeights.get(i, k)) {
 							top++
 						}
 
-						caveInfoList.push({low: bot, high: top})
+						caveInfos.set(i, k, caveTypeStartI-1, 0, bot)
+						caveInfos.set(i, k, caveTypeStartI-1, 1, top)
+					}
+				}
+			}
+		}
+	}
+
+	isCave(x, y, z, caveInfos: CaveInfos) {
+		for (let caveTypeI = 0; caveTypeI < this.numCaves; caveTypeI++) {
+			const low = caveInfos.get(x, z, caveTypeI, 0)
+			const high = caveInfos.get(x, z, caveTypeI, 1)
+
+			if (y >= low && y <= high) {
+				return true
+			}
+		}
+		return false
+	}
+
+	addCavesToChunk(array, startX, startY, startZ, caveInfos: CaveInfos) {
+		for (let x = startX; x < startX+this.chunkSize; x++) {
+			for (let z = startZ; z < startZ + this.chunkSize; z++) {
+				for (let caveTypeI = 0; caveTypeI < this.numCaves; caveTypeI++) {
+					const low = caveInfos.get(x, z, caveTypeI, 0)
+					const high = caveInfos.get(x, z, caveTypeI, 1)
+
+					if (low === NO_CAVE) {
+						continue
+					}
+
+					const caveMaxY = Math.min(high+1, startY+this.chunkSize)
+					for (let y = Math.max(low, startY); y < caveMaxY; y++) {
+						array.set(x-startX, y-startY, z-startZ, 0)
 					}
 				}
 			}
@@ -708,18 +679,19 @@ export class CavesGenerator {
 	private removeCavesNearWater(x, z, caveInfos: CaveInfos, heightmapVals: HeightmapVals) {
 		for (let i = x-this.lookOutsideChunkDist; i < x+this.chunkSize+this.lookOutsideChunkDist; ++i) {
 			for (let k = z-this.lookOutsideChunkDist; k < z+this.chunkSize + this.lookOutsideChunkDist; ++k) {
-				let ikID = xzId(i, k)
-				const cavesAllowedBelowY = heightmapVals.cavesAllowedBelowY[ikID]
+				const cavesAllowedBelowY = heightmapVals.cavesAllowedBelowY.get(i, k)
 				if (cavesAllowedBelowY !== NO_CAVES_RESTRICTION_FROM_WATER) {
-					const caveInfo = caveInfos[ikID]
-					for (let i = caveInfo.length-1; i >= 0; i--) {
-						const cave = caveInfo[i]
-						if (cave.high > cavesAllowedBelowY) {
-							if (cave.low > cavesAllowedBelowY) {
-								caveInfo.splice(i, 1)
+					for (let caveTypeI = 0; caveTypeI < this.numCaves; caveTypeI++) {
+						const low = caveInfos.get(i, k, caveTypeI, 0)
+						const high = caveInfos.get(i, k, caveTypeI, 1)
+
+						if (high > cavesAllowedBelowY) {
+							if (low > cavesAllowedBelowY) {
+								caveInfos.set(i, k, caveTypeI, 0, NO_CAVE)
+								caveInfos.set(i, k, caveTypeI, 1, NO_CAVE)
 							}
 							else {
-								cave.high = cavesAllowedBelowY
+								caveInfos.set(i, k, caveTypeI, 1, cavesAllowedBelowY)
 							}
 						}
 					}

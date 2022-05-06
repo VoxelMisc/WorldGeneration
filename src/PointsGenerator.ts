@@ -1,11 +1,7 @@
-import { makeProfileHook } from './profileHook'
-import {xzDistNoArr} from './util'
+import {Random, xzDistNoArr} from './util'
 import PoissonDiskSampling from 'poisson-disk-sampling'
 
-import Rand, {PRNG} from 'rand-seed'
-
-const profilePoints = false
-// const profiler = profilePoints ? makeProfileHook(110000, 'isPoint') : () => {}
+import {getIsServer} from './index'
 
 export type VariableDensitySettings = {func: Function, min: number, max: number}
 
@@ -15,9 +11,9 @@ export class PointsGenerator {
 
 	gridSize: number
 
-	maxStoredCells = 50
+	maxStoredCells = getIsServer() ? 100 : 50
 
-	_currCells = []
+	_currCells = new Map()
 	_tempCellCoord = [0, 0]
 
 	useIsPoint: boolean
@@ -28,6 +24,8 @@ export class PointsGenerator {
 	useJitteredGrid: boolean
 
 	customCellGap: number
+
+	mostRecentlyAccessedCell = null
 
 	constructor(
 		minDistanceBetweenPoints: number,
@@ -45,7 +43,6 @@ export class PointsGenerator {
 		this.minDist = minDistanceBetweenPoints
 		this.variableDensitySettings = variableDensitySettings
 		this.customCellGap = customCellGap
-		// this.gridSize = minDistanceBetweenPoints * 10
 		this.useJitteredGrid = useJitteredGrid
 
 		this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.pow(minDistanceBetweenPoints, 2)))
@@ -71,10 +68,6 @@ export class PointsGenerator {
 			}
 		}
 
-		// const circleRadius = minDistanceBetweenPoints/2
-		// this.gridSize = Math.floor(Math.sqrt(pointsPerCell*Math.PI*circleRadius*circleRadius))
-		// console.log("grid size", this.gridSize, "for minDist", minDistanceBetweenPoints)
-
 		this.useIsPoint = useIsPoint
 		this.useKthClosestPoint = useKthClosestPoint
 
@@ -83,32 +76,14 @@ export class PointsGenerator {
 
 	isPoint(x, z) {
 		const cellCoord = this.getCellCoordFromGlobalCoord(x, z);
-		// profiler('start')
 		const {pointsSet} = this.getCell(cellCoord[0], cellCoord[1])
 
-		// for (let pt of cellPts) {
-		// 	if (ptEqual(pt, x, z)) {
-		// 		profiler('findPt')
-		// 		profiler('end')
-		// 		return true
-		// 	}
-		// }
-
 		if (pointsSet.has(`${x}|${z}`)) {
-			// profiler('findPt')
-			// profiler('end')
 			return true
 		}
 
-		// profiler('findPt')
-		// profiler('end')
 		return false
 	}
-
-	// getKthClosestPoint(x, z, kthClosest) {
-	// 	const kClosest = this.getKClosestPoints(x, z, kthClosest)
-	// 	return kClosest[kClosest.length-1]
-	// }
 
 	getClosestPoint(x, z) {
 		const cellCoord = this.getCellCoordFromGlobalCoord(x, z)
@@ -165,68 +140,49 @@ export class PointsGenerator {
 	}
 
 	_getClosestPointsForGeneratedCell(cell, x, z, smoothDist) {
-		cell.surroundingPoints.sort((a, b) => {
-			const distA = xzDistNoArr(a, x, z)
-			const distB = xzDistNoArr(b, x, z)
-			return distA-distB
-		})
+		// Find closest pt
+		let closestPt: [number, number] = [0, 0]
+		let closestDist = 100000
+		for (const pt of cell.surroundingPoints) {
+			const distToPt = xzDistNoArr(pt, x, z)
+			if (distToPt < closestDist) {
+				closestPt = pt
+				closestDist = distToPt
+			}
+		}
 
-		const firstPtDist = xzDistNoArr(cell.surroundingPoints[0], x, z)
-		const returnResult = [{pt: cell.surroundingPoints[0], distDiffFromFirstPt: 0, weight: null,}]
+		// Find all points whose dist to x, z is within smoothDist difference from closest point
+
+		const returnedPoints = [{pt: closestPt, distDiffFromFirstPt: 0, weight: 0}]
 
 		// Initialise to smoothDist as we already have weight from first point
 		let weightTotal = smoothDist
 
-		for (let i = 1; i < cell.surroundingPoints.length; i++) {
-			const dist = xzDistNoArr(cell.surroundingPoints[i], x, z)
-			const distDiff = dist-firstPtDist
+		for (let i = 0; i < cell.surroundingPoints.length; i++) {
+			const pt = cell.surroundingPoints[i]
+			if (pt[0] === closestPt[0] && pt[1] === closestPt[1]) {
+				continue
+			}
+
+			const dist = xzDistNoArr(pt, x, z)
+			const distDiff = dist-closestDist
 			if (distDiff < smoothDist) {
-				returnResult.push({
-					pt: cell.surroundingPoints[i],
+				returnedPoints.push({
+					pt,
 					distDiffFromFirstPt: distDiff,
-					weight: null,
+					weight: 0,
 				})
 
 				weightTotal += smoothDist-distDiff
 			}
-			else {
-				break
-			}
 		}
 
-		// let totalWeights = 0
-		for (const res of returnResult) {
-			res.weight = (smoothDist-res.distDiffFromFirstPt)/weightTotal
-			// totalWeights += res.weight
+		for (const pt of returnedPoints) {
+			pt.weight = (smoothDist-pt.distDiffFromFirstPt)/weightTotal
 		}
-		// Ensure total sum of weights is exactly 1 - actually mby not needed
-		// returnResult[0].weight += (1-totalWeights)
 
-		return returnResult
+		return returnedPoints
 	}
-
-	// _get2ClosestPtsForAlrdyGeneratedCell(cell, x, z) {
-	// 	let closestPt = [0, 0]
-	// 	let secondClosestPt = [0, 0]
-	// 	let closest = 10000
-	// 	let secondClosest = 10000
-	// 	for (let tryPt of cell.surroundingPoints) {
-	// 		const dist = xzDistNoArr(tryPt, x, z)
-	// 		if (dist < closest) {
-	// 			secondClosestPt = closestPt
-	// 			closestPt = tryPt
-	//
-	// 			secondClosest = closest
-	// 			closest = dist
-	// 		}
-	// 		else if (dist < secondClosest) {
-	// 			secondClosestPt = tryPt
-	// 			secondClosest = dist
-	// 		}
-	// 	}
-	//
-	// 	return [closestPt, secondClosestPt]
-	// }
 
 	getCellCoordFromGlobalCoord(x, z) {
 		this._tempCellCoord[0] = Math.floor(x/this.gridSize)
@@ -236,17 +192,20 @@ export class PointsGenerator {
 	}
 
 	getCell(cellX, cellZ) {
-		// profiler('callFunc')
-		for (let cell of this._currCells) {
-			if (cell.coord[0] === cellX && cell.coord[1] === cellZ) {
-				// profiler('findCell')
-				return cell
-			}
+		if (this.mostRecentlyAccessedCell
+			&& this.mostRecentlyAccessedCell.coord[0] === cellX
+			&& this.mostRecentlyAccessedCell.coord[1] === cellZ) {
+			return this.mostRecentlyAccessedCell
 		}
-		// profiler('findCell')
+
+		const cellId = `${cellX}|${cellZ}`
+		const cachedCell = this._currCells.get(cellId)
+		if (cachedCell) {
+			this.mostRecentlyAccessedCell = cachedCell
+			return cachedCell
+		}
 
 		const {points, pointsSet} = this.generateRandomPointsForCell(cellX, cellZ)
-		// profiler('generatePts')
 
 		const cell = {
 			coord: [cellX, cellZ],
@@ -254,12 +213,14 @@ export class PointsGenerator {
 			pointsSet,
 			surroundingPoints: null,
 		}
-		this._currCells.unshift(cell)
 
-		if (this._currCells.length > this.maxStoredCells) {
-			this._currCells.pop()
+		this._currCells.set(cellId, cell)
+
+		if (this._currCells.size > this.maxStoredCells) {
+			this._currCells.delete(this._currCells.keys().next().value)
 		}
 
+		this.mostRecentlyAccessedCell = cell
 		return cell
 	}
 
@@ -269,7 +230,7 @@ export class PointsGenerator {
 
 		let pts
 		if (!this.useJitteredGrid) {
-			const rand = new Rand(`${cellX}${cellZ}${this.seed}pts`, PRNG.mulberry32);
+			const rand = new Random(`${cellX}${cellZ}${this.seed}pts`);
 			const randFunc = () => {
 				return rand.next()
 			}
@@ -314,7 +275,7 @@ export class PointsGenerator {
 			})
 		}
 		else {
-			const jitterRandGen = new Rand(`${cellX}${cellZ}${this.seed}jitter`, PRNG.mulberry32);
+			const jitterRandGen = new Random(`${cellX}${cellZ}${this.seed}jitter`);
 
 			pts = []
 
@@ -350,8 +311,4 @@ export class PointsGenerator {
 
 function ptEqual(pt: number[], x: number, z: number) {
 	return pt[0] === x && pt[1] === z
-}
-
-function ptsEqual(pt1: number[], pt2: number[]) {
-	return pt1[0] === pt2[0] && pt1[1] === pt2[1]
 }

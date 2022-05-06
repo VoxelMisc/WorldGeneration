@@ -1,10 +1,8 @@
 import {WorldGenerator} from './index'
-import Rand, {PRNG} from 'rand-seed'
 import {
 	distToLineSegmentWithInfo,
-	getCustomNoiseAmplitude,
+	getCustomNoiseAmplitude, Random,
 	SimplexCustomOctaveHelper,
-	xzDist,
 	xzDistNoArr,
 } from './util'
 
@@ -50,12 +48,13 @@ export class WaterBodyGenerator {
 
 	maxRiverSettings = {
 		width: 23,
-		atFlux: 1000,
+		atFlux: 800,
 	}
 
 	lakeSettings = {
+		minRadius: 15,
 		maxRadius: 60,
-		maxRadiusAtFlux: 2000,
+		maxRadiusAtFlux: 1700,
 
 		noLakeFluxCutoff: 50,
 	}
@@ -304,7 +303,7 @@ export class WaterBodyGenerator {
 
 		this.waterBodyInfos.set(cellId, cellInfo)
 		// Prevent indefinite memory leak
-		if (this.waterBodyInfos.size > 500) {
+		if (this.waterBodyInfos.size > 200) {
 			this.waterBodyInfos.delete(this.waterBodyInfos.keys().next().value)
 		}
 
@@ -399,7 +398,7 @@ export class WaterBodyGenerator {
 		const realCenterX = cellX*this.gridSize + this.gridSize/2
 		const realCenterZ = cellZ*this.gridSize + this.gridSize/2
 
-		const rand = new Rand(`${cellX}${cellZ}${this.seed}riverCell`, PRNG.mulberry32);
+		const rand = new Random(`${cellX}${cellZ}${this.seed}riverCell`);
 		const offsetX = Math.floor(rand.next()*this.cellCenterMaxOffset*2 - this.cellCenterMaxOffset)
 		const offsetZ = Math.floor(rand.next()*this.cellCenterMaxOffset*2 - this.cellCenterMaxOffset)
 
@@ -418,16 +417,10 @@ export class WaterBodyGenerator {
 
 		lakeInfo.hasLake = true
 
-		const fluxFracOfMax = totalFlux/this.lakeSettings.maxRadiusAtFlux
-		const radius = Math.ceil(fluxFracOfMax * this.lakeSettings.maxRadius)
-		lakeInfo.lakeRadius = radius
 
-		// const minSeenNoRiverHeightmapVal = 10000
-		// for (let x = lakeCenter[0]-radius; x <= lakeCenter[0]+radius; x++) {
-		// 	for (let z = lakeCenter[1]-radius; z <= lakeCenter[1]+radius; z++) {
-		//
-		// 	}
-		// }
+		const fluxFracOfMax = totalFlux/this.lakeSettings.maxRadiusAtFlux
+		const radius = this.lakeSettings.minRadius+Math.ceil(fluxFracOfMax * (this.lakeSettings.maxRadius-this.lakeSettings.minRadius))
+		lakeInfo.lakeRadius = radius
 
 		lakeInfo.lakeWaterHeight = Math.floor(existingInfo.originNoWaterHeight-7)
 
@@ -437,9 +430,5 @@ export class WaterBodyGenerator {
 
 	private getRainfall(x, z) {
 		return 100
-	}
-
-	private getRiverbedHeightFromNoRiverHeight(noWaterHeight, flux) {
-		return noWaterHeight - Math.ceil((0.1*flux))
 	}
 }

@@ -1,5 +1,5 @@
 import {PointsGenerator} from './PointsGenerator'
-import Rand, {PRNG} from 'rand-seed'
+import {Random} from './util'
 
 // Generates points
 export class ChunkBasedPointGenerator {
@@ -8,7 +8,7 @@ export class ChunkBasedPointGenerator {
 
 	_tempChunkCoord = [0, 0]
 
-	_maxRadiusChunk: number
+	maxRadiusChunk: number
 
 	seed: string
 
@@ -25,13 +25,12 @@ export class ChunkBasedPointGenerator {
 		this.chunkSize = chunkSize
 		this.pointsGenerator = pointsGenerator
 
-		// +2 instead of +1 incase i mess the maths up somewhere
-		this._maxRadiusChunk = Math.floor((maxFeatureWidth*0.5)/this.chunkSize)+2
+		this.maxRadiusChunk = Math.floor((maxFeatureWidth*0.5)/this.chunkSize)+1
 
 		this.seed = seed
 	}
 
-	getChunkCoordFromGlobalCoord(x, z) {
+	private getChunkCoordFromGlobalCoord(x, z) {
 		this._tempChunkCoord[0] = Math.floor(x/this.chunkSize)
 		this._tempChunkCoord[1] = Math.floor(z/this.chunkSize)
 
@@ -51,8 +50,8 @@ export class ChunkBasedPointGenerator {
 	getSurroundingFeatures(x: number, z: number): [blockX: number, blockZ: number][] {
 		const chunkCoord = this.getChunkCoordFromGlobalCoord(x, z);
 		const points = []
-		for (let i = chunkCoord[0]-this._maxRadiusChunk; i <= chunkCoord[0]+this._maxRadiusChunk; i++) {
-			for (let k = chunkCoord[1]-this._maxRadiusChunk; k <= chunkCoord[1]+this._maxRadiusChunk; k++) {
+		for (let i = chunkCoord[0]-this.maxRadiusChunk; i <= chunkCoord[0]+this.maxRadiusChunk; i++) {
+			for (let k = chunkCoord[1]-this.maxRadiusChunk; k <= chunkCoord[1]+this.maxRadiusChunk; k++) {
 				if (this.pointsGenerator.isPoint(i, k)) {
 					points.push(this._getRandomPointInChunk(i, k))
 				}
@@ -66,7 +65,7 @@ export class ChunkBasedPointGenerator {
 		const botLeftX = chunkX*this.chunkSize
 		const botLeftZ = chunkZ*this.chunkSize
 
-		const rand = new Rand(`${chunkX}|${chunkZ}|${this.seed}`, PRNG.mulberry32);
+		const rand = new Random(`${chunkX}|${chunkZ}|${this.seed}`);
 		const xOffset = Math.floor(rand.next()*this.chunkSize)
 		const zOffset = Math.floor(rand.next()*this.chunkSize)
 
